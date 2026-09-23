@@ -1,0 +1,15 @@
+# Backend
+Django>=5.2,<5.3
+
+# Conector MySQL (en Linux requiere: libmysqlclient-dev y pkg-config)
+mysqlclient>=2.2
+
+# Lectura de configuración y secretos desde el archivo .env
+django-environ>=0.11
+
+# --- Pendientes de decisión / de otros sprints (descomentar cuando corresponda) ---
+# Cifrado de campos (tarea #31, Carlos): definir librería antes de instalar
+# django-fernet-encrypted-fields
+# Despliegue en Azure App Service
+# gunicorn
+# whitenoise

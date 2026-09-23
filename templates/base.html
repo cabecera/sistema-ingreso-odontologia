@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Solicitud de atención{% endblock %} | Odontología UdeC</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
+
+  <style>
+    :root {
+      --ink: #14303b;          /* azul petróleo: navbar y títulos */
+      --clinic: #1a6b7b;       /* verde azulado: acciones principales */
+      --clinic-dark: #145562;
+      --porcelain: #f5f7f7;    /* fondo de página */
+      --signal: #e0a32e;       /* ámbar: foco y detalle institucional */
+
+      --bs-body-font-family: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --bs-body-bg: var(--porcelain);
+      --bs-body-color: #1e2b30;
+      --bs-link-color: var(--clinic);
+      --bs-link-hover-color: var(--clinic-dark);
+      --bs-primary: var(--clinic);
+      --bs-primary-rgb: 26, 107, 123;
+    }
+
+    h1, h2, h3, h4, .brand-title {
+      font-family: "Bricolage Grotesque", "Source Sans 3", system-ui, sans-serif;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .site-nav {
+      background: var(--ink);
+      border-bottom: 3px solid var(--signal);
+    }
+    .site-nav .brand-title { color: #fff; font-size: 1.1rem; line-height: 1.15; font-weight: 700; }
+    .site-nav .brand-sub { color: #b9cdd3; font-size: .85rem; }
+    .site-nav .nav-link { color: #dbe7ea; }
+    .site-nav .nav-link:hover, .site-nav .nav-link.active { color: #fff; }
+
+    .btn-primary {
+      --bs-btn-bg: var(--clinic);
+      --bs-btn-border-color: var(--clinic);
+      --bs-btn-hover-bg: var(--clinic-dark);
+      --bs-btn-hover-border-color: var(--clinic-dark);
+      --bs-btn-active-bg: var(--clinic-dark);
+      --bs-btn-active-border-color: var(--clinic-dark);
+      --bs-btn-disabled-bg: var(--clinic);
+      --bs-btn-disabled-border-color: var(--clinic);
+    }
+
+    .form-control:focus, .form-select:focus, .form-check-input:focus {
+      border-color: var(--clinic);
+      box-shadow: 0 0 0 .25rem rgba(26, 107, 123, .2);
+    }
+    :focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+    /* Ancho de lectura cómodo para formularios y texto (menos de 80 caracteres por línea) */
+    .page-narrow { max-width: 46rem; margin-inline: auto; }
+
+    .site-footer { border-top: 1px solid #d5dde0; color: #4d5f66; font-size: .9rem; }
+
+    .skip-link {
+      position: absolute; left: -999px; top: 0; z-index: 1030;
+      background: #fff; color: var(--ink); padding: .5rem 1rem;
+    }
+    .skip-link:focus { left: .5rem; top: .5rem; }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="d-flex flex-column min-vh-100">
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <header>
+    <nav class="navbar navbar-expand-md navbar-dark site-nav" aria-label="Navegación principal">
+      <div class="container">
+        <a class="navbar-brand d-flex flex-column" href="/">
+          <span class="brand-title">Facultad de Odontología</span>
+          <span class="brand-sub">Universidad de Concepción</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#menuPrincipal" aria-controls="menuPrincipal"
+                aria-expanded="false" aria-label="Abrir menú">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="menuPrincipal">
+          <ul class="navbar-nav me-auto mb-2 mb-md-0">
+            {% block nav_links %}{% endblock %}
+          </ul>
+
+          <div class="d-flex align-items-center gap-3">
+            {% if user.is_authenticated %}
+              <span class="navbar-text text-white">{{ user.get_full_name|default:user.username }}</span>
+              <form method="post" action="{% url 'logout' %}" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-light btn-sm">Cerrar sesión</button>
+              </form>
+            {% else %}
+              {# Cambiar por {% url 'login' %} cuando exista la ruta de login (tareas #34 y #35) #}
+              <a class="btn btn-outline-light btn-sm" href="/login/">Acceso interno</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main id="contenido" class="container py-5 flex-grow-1">
+    {% if messages %}
+      <div class="page-narrow mb-4" role="status">
+        {% for message in messages %}
+          <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar aviso"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer py-4">
+    <div class="container">
+      Prototipo académico. Todos los datos de esta plataforma son ficticios.
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+          crossorigin="anonymous"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
