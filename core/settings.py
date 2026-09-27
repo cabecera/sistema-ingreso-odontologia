@@ -79,10 +79,33 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
+
+# ============================================
+# Task 23: Configurar conexión a MySQL local
+# django-environ lee las variables del archivo .env,
+# para no dejar contraseñas escritas directo en el código
+# (esto es parte de las buenas prácticas de seguridad
+# del proyecto, no solo comodidad).
+# ============================================
+import environ
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / '.env')
+
+# ============================================
+# Task 23:
+# Reemplaza el bloque DATABASES que Django genera por
+# defecto (que apunta a SQLite) para que en vez de eso
+# se conecte a la base de datos MySQL real del proyecto.
+# ============================================
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': env('DB_NAME'),
+        'USER': env('DB_USER'),
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST', default='localhost'),
+        'PORT': env('DB_PORT', default='3306'),
     }
 }
 
