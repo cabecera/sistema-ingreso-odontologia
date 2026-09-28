@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Solicitar atención{% endblock %}
+
+{% block content %}
+<div class="page-narrow">
+  <h1 class="h2 mb-2">Solicitud de atención odontológica</h1>
+  <p class="text-secondary mb-4">Completa tus datos. Los campos con * son obligatorios.</p>
+
+  <form method="post">
+    {# Token anti-CSRF: Django rechaza el envío si falta. #}
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    {% for field in form %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+          {{ field.label }}{% if field.field.required %} *{% endif %}
+        </label>
+        {{ field }}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">Enviar solicitud</button>
+  </form>
+</div>
+{% endblock %}

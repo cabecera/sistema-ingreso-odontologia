@@ -14,9 +14,25 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+
+# --------------------------------------------
+# Enrutador principal del proyecto. Delega las
+# rutas públicas (el formulario del paciente) a
+# la app "pacientes". El admin de Django queda
+# accesible en /admin/.
+# ============================================
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import include,path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+
+    # Delega todo lo demás a pacientes/urls.py.
+    # La página de inicio (path "") será el formulario.
+    path('', include('pacientes.urls')),
 ]
+
+
