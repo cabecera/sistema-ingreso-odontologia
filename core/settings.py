@@ -132,9 +132,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Task 30: el sistema es para Chile; con esto los mensajes de
+# validación del formulario salen en español y las horas en hora local.
+LANGUAGE_CODE = 'es-cl'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
