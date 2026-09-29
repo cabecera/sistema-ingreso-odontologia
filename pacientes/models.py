@@ -16,6 +16,15 @@
 
 from django.db import models
 
+# ============================================
+# Task 31: Proteger datos sensibles del formulario
+# Issue padre: REQ-08 (Cifrado de datos sensibles)
+# --------------------------------------------
+# Importamos los campos cifrados de django-encrypted-model-fields.
+# Por debajo usan Fernet (AES-128 + HMAC), que es lo que pide
+# el contexto del proyecto (no AES-256 manual).
+# ============================================
+from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField
 from .validators import (
     formatear_rut,
     validar_fecha_nacimiento,
@@ -28,11 +37,10 @@ class Solicitud(models.Model):
     Solicitud de atención odontológica ingresada por un paciente.
 
     Guarda tanto los datos de contacto del paciente como sus
-    antecedentes de salud. RUT y antecedentes son datos sensibles:
-    por ahora quedan como texto plano, y la tarea #31 los cambia a
-    campos cifrados (EncryptedCharField / EncryptedTextField) para
-    cumplir REQ-08. Los campos que hay que cambiar están marcados
-    con el comentario "CIFRAR" para que no se nos olvide ninguno.
+    antecedentes de salud. RUT y antecedentes son datos sensibles
+    y están cifrados con django-encrypted-model-fields (REQ-08,
+    Task 31). El cifrado se hace de forma transparente: al leer
+    desde el ORM se ve el texto plano, pero en MySQL queda cifrado.
     """
 
     class Estado(models.TextChoices):
@@ -56,9 +64,9 @@ class Solicitud(models.Model):
     # No lleva unique=True a propósito: un campo cifrado no se puede
     # comparar ni buscar con el ORM, así que la unicidad del RUT no
     # se puede garantizar a nivel de base de datos una vez cifrado.
-    rut = models.CharField(
+    rut = EncryptedCharField(
         "RUT",
-        max_length=12,
+        max_length=100,
         validators=[validar_rut],
         help_text="Se guarda siempre formateado como 12345678-5.",
     )
@@ -87,14 +95,15 @@ class Solicitud(models.Model):
     )
 
     # --- Antecedentes de salud (dato sensible, REQ-08) ---
-    # CIFRAR (tarea #31): cambiar a EncryptedTextField.
-    antecedentes_personales = models.TextField(
+    # Cambiados a EncryptedTextField. Fernet cifra el contenido
+    # completo antes de guardarlo en MySQL.
+    antecedentes_personales = EncryptedTextField(
         "antecedentes de salud personales",
         blank=True,
     )
 
-    # CIFRAR (tarea #31): cambiar a EncryptedTextField.
-    antecedentes_familiares = models.TextField(
+    # Task 31: Proteger datos sensibles del formulario (REQ-08)
+    antecedentes_familiares = EncryptedTextField(
         "antecedentes de salud familiares",
         blank=True,
     )

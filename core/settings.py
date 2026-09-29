@@ -44,6 +44,13 @@ INSTALLED_APPS = [
     'estudiantes',
     'administracion',
     'seguridad',
+    # ============================================
+    # Task 31: Proteger datos sensibles del formulario (REQ-08)
+    # Librería de cifrado transparente de campos en la BD.
+    # Usa Fernet (AES-128 + HMAC) internamente.
+    # ============================================
+
+    'encrypted_model_fields',
 ]
 
 MIDDLEWARE = [
@@ -150,5 +157,17 @@ STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+
+# ============================================
+# Task 31: Proteger datos sensibles del formulario
+# Issue padre: REQ-08 (Cifrado de datos sensibles)
+# --------------------------------------------
+# Llave de cifrado Fernet. Se lee desde el .env
+# (nunca hardcodeada). Si falta, la app falla al
+# arrancar: mejor fallar fuerte que cifrar mal.
+# ============================================
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

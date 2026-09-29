@@ -13,3 +13,8 @@ django-environ>=0.11
 # Despliegue en Azure App Service
 # gunicorn
 # whitenoise
+
+
+# Task 31: Proteger datos sensibles del formulario (REQ-08)
+# Cifrado transparente de campos en la BD con Fernet (AES-128 + HMAC).
+django-encrypted-model-fields>=0.6.5
