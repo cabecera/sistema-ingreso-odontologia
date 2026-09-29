@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Solicitud enviada{% endblock %}
+
+{% block content %}
+<div class="page-narrow text-center">
+  <h1 class="h2 mb-3">Solicitud recibida</h1>
+  <p class="lead">La coordinación de la clínica revisará tu solicitud y te contactará al teléfono que indicaste.</p>
+  <a class="btn btn-primary mt-3" href="{% url 'pacientes:nueva_solicitud' %}">Volver al inicio</a>
+</div>
+{% endblock %}
