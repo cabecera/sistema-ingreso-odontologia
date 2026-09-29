@@ -14,6 +14,8 @@ from datetime import date
 from django import forms
 from django.core.validators import MaxLengthValidator
 
+from administracion.models import Especialidad
+
 from .models import Solicitud
 
 LIMITES_TEXTO = {
@@ -65,8 +67,14 @@ class SolicitudForm(forms.ModelForm):
         self.fields["fecha_nacimiento"].widget.attrs["max"] = date.today().isoformat()
 
         # Sin esto la lista muestra "---------" como primera opción.
-        # (Task 33 limitará la lista a especialidades activas.)
         self.fields["especialidad"].empty_label = "Selecciona una especialidad"
+
+        # Task 33: la lista solo debe mostrar especialidades activas.
+        # Si una especialidad se desactiva (Especialidad.activa=False),
+        # deja de aparecer como opción para nuevos pacientes, pero las
+        # solicitudes que ya la usaban no se ven afectadas (la FK sigue
+        # apuntando a la especialidad, solo que ya no se ofrece de nuevo).
+        self.fields["especialidad"].queryset = Especialidad.objects.filter(activa=True)
 
         # Clases de Bootstrap para que el formulario se vea ordenado.
         for campo in self.fields.values():
