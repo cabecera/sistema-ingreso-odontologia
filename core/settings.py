@@ -171,3 +171,10 @@ FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ============================================
+# Task 35: Redirecciones para autenticación y RBAC
+# ============================================
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = 'login'
