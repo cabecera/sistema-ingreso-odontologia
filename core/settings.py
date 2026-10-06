@@ -172,9 +172,23 @@ FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# # ============================================
+# # Task 35: Redirecciones para autenticación y RBAC
+# # ============================================
+# LOGIN_URL = 'login'
+# LOGIN_REDIRECT_URL = '/'
+# LOGOUT_REDIRECT_URL = 'login'
+
+
 # ============================================
-# Task 35: Redirecciones para autenticación y RBAC
+# Task 42: Redirecciones de autenticación y RBAC
+# --------------------------------------------
+# Las URLs de login/logout están registradas en
+# seguridad/urls.py con app_name = "seguridad".
+# Por eso se referencian con el namespace "seguridad:".
+# Sin esto, Django lanza NoReverseMatch al resolver
+# {% url 'login' %} o al redirigir tras el logout.
 # ============================================
-LOGIN_URL = 'login'
+LOGIN_URL = 'seguridad:login'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = 'login'
+LOGOUT_REDIRECT_URL = 'seguridad:login'

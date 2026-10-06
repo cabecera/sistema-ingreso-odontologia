@@ -29,6 +29,8 @@ from django.urls import include,path
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+    #task 42: Configurar el sistema de inicio de sesión
+    path('', include('seguridad.urls')),
 
     # Delega todo lo demás a pacientes/urls.py.
     # La página de inicio (path "") será el formulario.

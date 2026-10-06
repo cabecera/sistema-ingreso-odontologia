@@ -102,13 +102,12 @@
           <div class="d-flex align-items-center gap-3">
             {% if user.is_authenticated %}
               <span class="navbar-text text-white">{{ user.get_full_name|default:user.username }}</span>
-              <form method="post" action="{% url 'logout' %}" class="m-0">
+              <form method="post" action="{% url 'seguridad:logout' %}" class="m-0">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-light btn-sm">Cerrar sesión</button>
               </form>
             {% else %}
-              {# Cambiar por {% url 'login' %} cuando exista la ruta de login (tareas #34 y #35) #}
-              <a class="btn btn-outline-light btn-sm" href="/login/">Acceso interno</a>
+              <a class="btn btn-outline-light btn-sm" href="{% url 'seguridad:login' %}">Acceso interno</a>
             {% endif %}
           </div>
         </div>
