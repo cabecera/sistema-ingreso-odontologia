@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+
+{% block content %}
+<div class="page-narrow">
+  <h1 class="h2 mb-4">Acceso interno</h1>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <div class="mb-3">
+      <label for="{{ form.username.id_for_label }}" class="form-label">Usuario</label>
+      {{ form.username }}
+    </div>
+    <div class="mb-3">
+      <label for="{{ form.password.id_for_label }}" class="form-label">Contraseña</label>
+      {{ form.password }}
+    </div>
+    {% for error in form.non_field_errors %}
+      <div class="text-danger small mb-2">{{ error }}</div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">Ingresar</button>
+  </form>
+</div>
+{% endblock %}
