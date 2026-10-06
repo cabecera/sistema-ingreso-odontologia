@@ -24,7 +24,7 @@ Including another URLconf
 # ============================================
 
 from django.contrib import admin
-from django.urls import include,path
+from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,9 +32,17 @@ urlpatterns = [
     #task 42: Configurar el sistema de inicio de sesión
     path('', include('seguridad.urls')),
 
+    # ============================================
+    # Task 44: Bloquear el acceso a quien no haya iniciado sesión
+    # Conecta los paneles de ejemplo de cada app a una URL real,
+    # cada uno con su propio prefijo para no chocar con el
+    # formulario público (que vive en la raíz "").
+    # ============================================
+    path('administracion/', include('administracion.urls')),
+    path('coordinacion/', include('coordinacion.urls')),
+    path('estudiantes/', include('estudiantes.urls')),
+
     # Delega todo lo demás a pacientes/urls.py.
     # La página de inicio (path "") será el formulario.
     path('', include('pacientes.urls')),
 ]
-
-
