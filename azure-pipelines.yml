@@ -1,1 +1,93 @@
 
+# ============================================
+# Pipeline CI/CD — Sistema de Ingreso y Derivación de Pacientes
+# Arquitectura híbrida: código en GitHub, orquestación en
+# Azure Pipelines, despliegue en Azure App Service.
+# ============================================
+
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  pythonVersion: '3.13'
+  webAppName: 'ingreso-odontologia-udec'
+  azureServiceConnection: 'Conexion-Azure-UdeC'
+
+stages:
+- stage: Build_and_Test
+  displayName: 'Fase de Integración Continua (CI) y Seguridad'
+  jobs:
+  - job: Build
+    displayName: 'Compilación, pruebas y análisis de seguridad'
+
+    # Levanta un contenedor de MySQL temporal, igual que la BD
+    # local de cada integrante, para que los tests corran contra
+    # una base de datos real.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: pipeline_test_pw
+          MYSQL_DATABASE: ingreso_odontologia
+        ports:
+          - 3306:3306
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+      displayName: 'Configurar entorno Python $(pythonVersion)'
+
+    - script: |
+        sudo apt-get update
+        sudo apt-get install -y default-libmysqlclient-dev pkg-config
+      displayName: 'Instalar dependencias del sistema (mysqlclient)'
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      displayName: 'Instalar dependencias del proyecto'
+
+    - script: |
+        pip install bandit
+        bandit -r . -x ./venv
+      displayName: 'Análisis SAST de vulnerabilidades (Bandit)'
+
+    - script: |
+        echo "DB_NAME=ingreso_odontologia" >> .env
+        echo "DB_USER=root" >> .env
+        echo "DB_PASSWORD=pipeline_test_pw" >> .env
+        echo "DB_HOST=127.0.0.1" >> .env
+        echo "DB_PORT=3306" >> .env
+        echo "FIELD_ENCRYPTION_KEY=$(FIELD_ENCRYPTION_KEY_TEST)" >> .env
+      displayName: 'Crear archivo .env de prueba'
+
+    - script: python manage.py check
+      displayName: 'Verificar configuración de Django'
+
+    - script: python manage.py migrate
+      displayName: 'Correr migraciones'
+
+    - script: python manage.py test
+      displayName: 'Ejecutar pruebas unitarias de Django'
+
+- stage: Deploy
+  displayName: 'Fase de Despliegue Continuo (CD)'
+  dependsOn: Build_and_Test
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: 'Despliegue a Azure App Service'
+    steps:
+    - task: AzureWebApp@1
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        appType: 'webAppLinux'
+        appName: '$(webAppName)'
+        package: '$(System.DefaultWorkingDirectory)'
+      displayName: 'Desplegar aplicación a producción'
