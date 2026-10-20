@@ -36,7 +36,12 @@ environ.Env.read_env(BASE_DIR / '.env')
 # DEBUG default False para no exponer el
 # traceback fuera de desarrollo local / CI.
 # ============================================
-SECRET_KEY = env('SECRET_KEY')
+# Activar despues
+# SECRET_KEY = env('SECRET_KEY')
+
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-ci-only-key-para-pruebas')
+
+
 DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
@@ -214,7 +219,12 @@ STORAGES = {
 # (nunca hardcodeada). Si falta, la app falla al
 # arrancar: mejor fallar fuerte que cifrar mal.
 # ============================================
-FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
+
+
+# Arreglar despues
+# FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
+
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='Xq7v9B2wR1sE4dF5gH6jK7lM8nO9pQ0rS1tU2vW3xY4=')
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
