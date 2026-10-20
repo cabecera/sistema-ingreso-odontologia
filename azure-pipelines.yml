@@ -16,9 +16,8 @@ pool:
   vmImage: ubuntu-latest
 
 # Valores NO secretos, solo para CI/tests.
-
+# El grupo con secretos NO va aquí: solo lo ve la etapa CD.
 variables:
-  - group: 'render-secrets'
   - name: SECRET_KEY
     value: "ci-not-a-production-secret-key"
   - name: DEBUG
@@ -79,6 +78,8 @@ stages:
     displayName: "Despliegue continuo"
     dependsOn: CI
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      - group: 'render-secrets'
     jobs:
       - deployment: DeployRender
         displayName: "Disparar Deploy Hook de Render"
