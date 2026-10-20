@@ -11,9 +11,20 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# ============================================
+# Tasks 45/46: Lectura de variables de entorno desde .env.
+# Se inicializa acá arriba (no pegado a DATABASES como antes)
+# para que esté disponible para cualquier configuración del
+# archivo que la necesite, incluyendo ALLOWED_HOSTS.
+# ============================================
+env = environ.Env()
+environ.Env.read_env(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,7 +36,7 @@ SECRET_KEY = 'django-insecure-zsuuijoci2map%f187-n*^%q4#%m0wxix+$*_+7f&h!zkt#ga*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
 
 
 # Application definition
@@ -86,18 +97,6 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-
-
-# ============================================
-# Task 23: Configurar conexión a MySQL local
-# django-environ lee las variables del archivo .env,
-# para no dejar contraseñas escritas directo en el código
-# (esto es parte de las buenas prácticas de seguridad
-# del proyecto, no solo comodidad).
-# ============================================
-import environ
-env = environ.Env()
-environ.Env.read_env(BASE_DIR / '.env')
 
 # ============================================
 # Task 23:
@@ -192,3 +191,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'seguridad:login'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'seguridad:login'
+
+
+# ============================================
+# Tasks 45 y 46: Seguridad de la conexión (REQ-09)
+# Se activan SOLO cuando DEBUG=False, porque
+# http://127.0.0.1:8000 no tiene certificado SSL.
+# SECURE_PROXY_SSL_HEADER es necesario porque Azure App
+# Service termina el certificado SSL en su balanceador,
+# no en el propio proceso de Django.
+# Pendiente de verificar en un entorno real desplegado
+# (ver riesgo abierto de Task 38).
+# ============================================
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
