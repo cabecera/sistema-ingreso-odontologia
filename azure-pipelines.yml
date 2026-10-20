@@ -17,6 +17,7 @@ pool:
 
 # Valores NO secretos, solo para CI/tests.
 variables:
+- group: 'render-secrets'
   SECRET_KEY: "ci-not-a-production-secret-key"
   # DEBUG=True evita que SECURE_SSL_REDIRECT rompa el cliente de tests.
   DEBUG: "True"
