@@ -16,15 +16,21 @@ pool:
   vmImage: ubuntu-latest
 
 # Valores NO secretos, solo para CI/tests.
+
 variables:
-- group: 'render-secrets'
-  SECRET_KEY: "ci-not-a-production-secret-key"
-  # DEBUG=True evita que SECURE_SSL_REDIRECT rompa el cliente de tests.
-  DEBUG: "True"
-  USE_SQLITE: "True"
-  DB_NAME: "ci"
-  DB_USER: "ci"
-  DB_PASSWORD: "ci"
+  - group: 'render-secrets'
+  - name: SECRET_KEY
+    value: "ci-not-a-production-secret-key"
+  - name: DEBUG
+    value: "True"
+  - name: USE_SQLITE
+    value: "True"
+  - name: DB_NAME
+    value: "ci"
+  - name: DB_USER
+    value: "ci"
+  - name: DB_PASSWORD
+    value: "ci"
 
 stages:
   - stage: CI
