@@ -42,3 +42,57 @@ Los pacientes registran su solicitud de atención mediante un portal web públic
 | Paulina Gallardo | *(completar)* |
 
 *Proyecto desarrollado para la asignatura de Desarrollo Seguro de Software (DevSecOps) — INACAP.*
+
+## Despliegue (CI/CD)
+
+Flujo (todo con planes gratuitos; no hay suscripción de Azure):
+
+```
+push / merge a main
+        ↓
+Azure Pipelines (stage CI: tests, Bandit, pip-audit, docker build)
+        ↓
+Azure Pipelines (stage CD, solo si CI pasó y la rama es main)
+        ↓
+POST al Deploy Hook de Render (variable secreta RENDER_DEPLOY_HOOK)
+        ↓
+Render reconstruye el Web Service (Docker) y sirve gunicorn + WhiteNoise
+        ↓
+MySQL en Aiven (conexión SSL; el CA vive en certs/aiven-ca.pem)
+```
+
+El archivo `certs/aiven-ca.pem` lo agrega el equipo: es el certificado público CA descargado desde la consola de Aiven. No se inventa ni se genera en el repo.
+
+### Variables de entorno
+
+| Variable | Uso |
+|---|---|
+| `SECRET_KEY` | Clave secreta de Django |
+| `DEBUG` | `False` en producción; `True` en CI/tests |
+| `ALLOWED_HOSTS` | Hosts permitidos (lista separada por comas) |
+| `CSRF_TRUSTED_ORIGINS` | Orígenes CSRF (lista, con esquema `https://`) |
+| `RENDER_EXTERNAL_HOSTNAME` | La inyecta Render; se suma a hosts/CSRF |
+| `DB_NAME` | Nombre de la base MySQL (Aiven) |
+| `DB_USER` | Usuario MySQL |
+| `DB_PASSWORD` | Contraseña MySQL |
+| `DB_HOST` | Host MySQL |
+| `DB_PORT` | Puerto MySQL |
+| `DB_SSL_CA` | Ruta al CA de Aiven (p. ej. `certs/aiven-ca.pem`) |
+| `FIELD_ENCRYPTION_KEY` | Llave Fernet para campos cifrados |
+| `USE_SQLITE` | `True` solo en CI/tests; `False` en producción |
+
+Los valores reales viven en Render y en el `.env` local. No van en el repositorio. El Deploy Hook de Render se configura como variable secreta `RENDER_DEPLOY_HOOK` en Azure Pipelines, no en el YAML.
+
+### Cómo correr los tests
+
+```
+USE_SQLITE=True python manage.py test
+```
+
+En CI además se define `DEBUG=True` para que `SECURE_SSL_REDIRECT` no rompa el cliente de pruebas.
+
+### Limitación del plan gratuito
+
+El Web Service Free de Render se duerme tras **15 minutos de inactividad**. La primera petición siguiente puede tardar en responder mientras el servicio despierta.
+
+En Azure Pipelines hay que desactivar Auto-Deploy de Render (el CD lo dispara el pipeline) y crear el environment `produccion` la primera vez que corra el stage CD.

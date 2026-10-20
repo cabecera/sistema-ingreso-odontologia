@@ -1,20 +1,12 @@
-# Backend
-Django>=5.2,<5.3
-
-# Conector MySQL (en Linux requiere: libmysqlclient-dev y pkg-config)
-mysqlclient>=2.2
-
-# Lectura de configuración y secretos desde el archivo .env
-django-environ>=0.11
-
-# --- Pendientes de decisión / de otros sprints (descomentar cuando corresponda) ---
-# Cifrado de campos (tarea #31, Carlos): definir librería antes de instalar
-# django-fernet-encrypted-fields
-# Despliegue en Azure App Service
-# gunicorn
-# whitenoise
-
-
-# Task 31: Proteger datos sensibles del formulario (REQ-08)
-# Cifrado transparente de campos en la BD con Fernet (AES-128 + HMAC).
-django-encrypted-model-fields>=0.6.5
+asgiref==3.12.1
+cffi==2.1.1
+cryptography==50.0.2
+Django==5.2.18
+django-encrypted-model-fields==0.6.5
+django-environ==0.14.0
+gunicorn==26.2.0
+mysqlclient==2.3.0
+pycparser==3.11
+sqlparse==0.6.0
+tzdata==2026.5
+whitenoise==6.12.0

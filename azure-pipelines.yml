@@ -1,93 +1,87 @@
-
 # ============================================
-# Pipeline CI/CD — Sistema de Ingreso y Derivación de Pacientes
-# Arquitectura híbrida: código en GitHub, orquestación en
-# Azure Pipelines, despliegue en Azure App Service.
+# Pipeline CI/CD — YAML multi-stage.
+# CI corre tests y construye la imagen Docker.
+# CD (solo main) dispara el Deploy Hook de Render.
+# La URL del hook NUNCA va en este archivo: es la
+# variable secreta RENDER_DEPLOY_HOOK en Azure Pipelines.
 # ============================================
 
 trigger:
-  branches:
-    include:
-      - main
+  - main
+
+pr:
+  - main
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: ubuntu-latest
 
+# Valores NO secretos, solo para CI/tests.
 variables:
-  pythonVersion: '3.13'
-  webAppName: 'ingreso-odontologia-udec'
-  azureServiceConnection: 'Conexion-Azure-UdeC'
+  SECRET_KEY: "ci-not-a-production-secret-key"
+  # DEBUG=True evita que SECURE_SSL_REDIRECT rompa el cliente de tests.
+  DEBUG: "True"
+  USE_SQLITE: "True"
+  DB_NAME: "ci"
+  DB_USER: "ci"
+  DB_PASSWORD: "ci"
 
 stages:
-- stage: Build_and_Test
-  displayName: 'Fase de Integración Continua (CI) y Seguridad'
-  jobs:
-  - job: Build
-    displayName: 'Compilación, pruebas y análisis de seguridad'
+  - stage: CI
+    displayName: "Integración continua"
+    jobs:
+      - job: BuildAndTest
+        displayName: "Tests, SAST y build Docker"
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.13"
+            displayName: "Configurar Python 3.13"
 
-    # Levanta un contenedor de MySQL temporal, igual que la BD
-    # local de cada integrante, para que los tests corran contra
-    # una base de datos real.
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: pipeline_test_pw
-          MYSQL_DATABASE: ingreso_odontologia
-        ports:
-          - 3306:3306
+          - script: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends \
+                build-essential default-libmysqlclient-dev pkg-config
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: "Instalar dependencias del sistema y del proyecto"
 
-    steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '$(pythonVersion)'
-      displayName: 'Configurar entorno Python $(pythonVersion)'
+          - bash: |
+              KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+              echo "##vso[task.setvariable variable=FIELD_ENCRYPTION_KEY]$KEY"
+            displayName: "Generar FIELD_ENCRYPTION_KEY para tests"
 
-    - script: |
-        sudo apt-get update
-        sudo apt-get install -y default-libmysqlclient-dev pkg-config
-      displayName: 'Instalar dependencias del sistema (mysqlclient)'
+          - script: python manage.py check
+            displayName: "Verificar configuración de Django"
 
-    - script: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-      displayName: 'Instalar dependencias del proyecto'
+          - script: python manage.py test
+            displayName: "Ejecutar pruebas de Django"
 
-    - script: |
-        pip install bandit
-        bandit -r . -x ./venv
-      displayName: 'Análisis SAST de vulnerabilidades (Bandit)'
+          - script: |
+              pip install bandit pip-audit
+              bandit -r core pacientes coordinacion estudiantes administracion seguridad -ll
+            displayName: "Análisis SAST (Bandit)"
 
-    - script: |
-        echo "DB_NAME=ingreso_odontologia" >> .env
-        echo "DB_USER=root" >> .env
-        echo "DB_PASSWORD=pipeline_test_pw" >> .env
-        echo "DB_HOST=127.0.0.1" >> .env
-        echo "DB_PORT=3306" >> .env
-        echo "FIELD_ENCRYPTION_KEY=$(FIELD_ENCRYPTION_KEY_TEST)" >> .env
-      displayName: 'Crear archivo .env de prueba'
+          - script: pip-audit -r requirements.txt
+            displayName: "Auditoría de dependencias (pip-audit)"
+            continueOnError: true
 
-    - script: python manage.py check
-      displayName: 'Verificar configuración de Django'
+          - script: docker build -t odontologia:$(Build.BuildId) .
+            displayName: "Construir imagen Docker"
 
-    - script: python manage.py migrate
-      displayName: 'Correr migraciones'
-
-    - script: python manage.py test
-      displayName: 'Ejecutar pruebas unitarias de Django'
-
-- stage: Deploy
-  displayName: 'Fase de Despliegue Continuo (CD)'
-  dependsOn: Build_and_Test
-  condition: succeeded()
-  jobs:
-  - job: Deploy
-    displayName: 'Despliegue a Azure App Service'
-    steps:
-    - task: AzureWebApp@1
-      inputs:
-        azureSubscription: '$(azureServiceConnection)'
-        appType: 'webAppLinux'
-        appName: '$(webAppName)'
-        package: '$(System.DefaultWorkingDirectory)'
-      displayName: 'Desplegar aplicación a producción'
+  - stage: CD
+    displayName: "Despliegue continuo"
+    dependsOn: CI
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployRender
+        displayName: "Disparar Deploy Hook de Render"
+        environment: produccion
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - script: |
+                    curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK"
+                  displayName: "Llamar Deploy Hook de Render"
+                  env:
+                    RENDER_DEPLOY_HOOK: $(RENDER_DEPLOY_HOOK)

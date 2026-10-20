@@ -30,13 +30,29 @@ environ.Env.read_env(BASE_DIR / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-zsuuijoci2map%f187-n*^%q4#%m0wxix+$*_+7f&h!zkt#ga*'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# ============================================
+# AB#45 AB#46: SECRET_KEY y DEBUG salen del
+# entorno; ningún secreto queda hardcodeado.
+# DEBUG default False para no exponer el
+# traceback fuera de desarrollo local / CI.
+# ============================================
+SECRET_KEY = env('SECRET_KEY')
+DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
+# ============================================
+# AB#45 AB#46: Render inyecta RENDER_EXTERNAL_HOSTNAME
+# en el web service. Se agrega a ALLOWED_HOSTS y a
+# CSRF_TRUSTED_ORIGINS (origen https).
+# ============================================
+render_hostname = env('RENDER_EXTERNAL_HOSTNAME', default='')
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+    render_origin = f'https://{render_hostname}'
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 
 # Application definition
@@ -66,6 +82,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # ============================================
+    # AB#45 AB#46: WhiteNoise sirve STATIC_ROOT
+    # detrás de gunicorn en Render (plan Free).
+    # Debe ir justo después de SecurityMiddleware.
+    # ============================================
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -99,21 +121,32 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # ============================================
-# Task 23:
-# Reemplaza el bloque DATABASES que Django genera por
-# defecto (que apunta a SQLite) para que en vez de eso
-# se conecte a la base de datos MySQL real del proyecto.
+# Task 23: conexión MySQL (producción / Aiven).
+# AB#45 AB#46: USE_SQLITE es SOLO para CI y tests.
+# En producción debe quedar False. Si DB_SSL_CA
+# tiene valor, se exige SSL (plan Free de Aiven).
 # ============================================
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': env('DB_NAME'),
-        'USER': env('DB_USER'),
-        'PASSWORD': env('DB_PASSWORD'),
-        'HOST': env('DB_HOST', default='localhost'),
-        'PORT': env('DB_PORT', default='3306'),
+if env.bool('USE_SQLITE', default=False):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': env('DB_NAME'),
+            'USER': env('DB_USER'),
+            'PASSWORD': env('DB_PASSWORD'),
+            'HOST': env('DB_HOST', default='localhost'),
+            'PORT': env('DB_PORT', default='3306'),
+        }
+    }
+    db_ssl_ca = env('DB_SSL_CA', default='')
+    if db_ssl_ca:
+        DATABASES['default']['OPTIONS'] = {'ssl': {'ca': db_ssl_ca}}
 
 
 # Password validation
@@ -153,6 +186,21 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# ============================================
+# AB#45 AB#46: WhiteNoise comprime estáticos sin
+# Manifest (el Manifest rompe URLs si falta un
+# archivo mapeado tras collectstatic).
+# ============================================
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
