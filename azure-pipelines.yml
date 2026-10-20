@@ -2,8 +2,6 @@
 # Pipeline CI/CD — YAML multi-stage.
 # CI corre tests y construye la imagen Docker.
 # CD (solo main) dispara el Deploy Hook de Render.
-# La URL del hook NUNCA va en este archivo: es la
-# variable secreta RENDER_DEPLOY_HOOK en Azure Pipelines.
 # ============================================
 
 trigger:
@@ -56,11 +54,34 @@ stages:
               echo "##vso[task.setvariable variable=FIELD_ENCRYPTION_KEY]$KEY"
             displayName: "Generar FIELD_ENCRYPTION_KEY para tests"
 
+          # Diagnóstico (borrar después)
+          - script: |
+              printenv | grep -E '^(SECRET_KEY|DEBUG|USE_SQLITE|DB_NAME|FIELD_ENCRYPTION_KEY)=' | sed 's/=.*/=<definida>/' || echo "Ninguna variable llega al entorno"
+            displayName: "Diagnóstico de variables"
+
+          # AQUÍ ESTÁ LA MAGIA: Mapeamos las variables al entorno del script
           - script: python manage.py check
             displayName: "Verificar configuración de Django"
+            env:
+              SECRET_KEY: $(SECRET_KEY)
+              DEBUG: $(DEBUG)
+              USE_SQLITE: $(USE_SQLITE)
+              DB_NAME: $(DB_NAME)
+              DB_USER: $(DB_USER)
+              DB_PASSWORD: $(DB_PASSWORD)
+              FIELD_ENCRYPTION_KEY: $(FIELD_ENCRYPTION_KEY)
 
+          # Lo mismo para los tests
           - script: python manage.py test
             displayName: "Ejecutar pruebas de Django"
+            env:
+              SECRET_KEY: $(SECRET_KEY)
+              DEBUG: $(DEBUG)
+              USE_SQLITE: $(USE_SQLITE)
+              DB_NAME: $(DB_NAME)
+              DB_USER: $(DB_USER)
+              DB_PASSWORD: $(DB_PASSWORD)
+              FIELD_ENCRYPTION_KEY: $(FIELD_ENCRYPTION_KEY)
 
           - script: |
               pip install bandit pip-audit
