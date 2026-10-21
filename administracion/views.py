@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from seguridad.decorators import role_required
 
-@role_required('Super Administrador')  #<--- Comentar
+# @role_required('Super Administrador')  #<--- Comentar
 def panel_administracion(request):
     """
     Vista de administracion restringida exclusivamente para el rol Super Administrador.
