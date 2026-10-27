@@ -15,7 +15,7 @@
 # ============================================
 
 from django.db import models
-
+from django.conf import settings
 # ============================================
 # Task 31: Proteger datos sensibles del formulario
 # Issue padre: REQ-08 (Cifrado de datos sensibles)
@@ -108,6 +108,18 @@ class Solicitud(models.Model):
         blank=True,
     )
 
+    # Task 50: Crear la página "mis pacientes" del estudiante
+    # Issue padre: REQ-06 (Vista restringida del estudiante)
+    # Es null mientras la solicitud está PENDIENTE. SET_NULL para que
+    # borrar la cuenta de un estudiante no borre la solicitud del paciente.
+    estudiante_asignado = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_asignadas",
+        verbose_name="estudiante asignado",
+    )
     # --- Campos de gestión, para el panel del Coordinador (REQ-04) ---
     estado = models.CharField(
         "estado",
