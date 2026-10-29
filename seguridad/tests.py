@@ -132,3 +132,33 @@ class AccesoPanelesPorRolTests(TestCase):
     def test_formulario_publico_responde_200(self):
         respuesta = self.client.get("/")
         self.assertEqual(respuesta.status_code, 200)
+
+
+
+# ============================================
+# Página 403 personalizada
+# Issue padre: REQ-07 (Control de acceso basado en roles)
+# ============================================
+class PaginaAccesoDenegadoTests(TestCase):
+    def setUp(self):
+        grupo_estudiante, _ = Group.objects.get_or_create(name="Estudiante")
+        self.estudiante = User.objects.create_user(username="estudiante_403")
+        self.estudiante.groups.add(grupo_estudiante)
+        self.client.force_login(self.estudiante)
+
+    def test_403_usa_el_template_personalizado(self):
+        respuesta = self.client.get("/coordinacion/", secure=True)
+        self.assertEqual(respuesta.status_code, 403)
+        self.assertTemplateUsed(respuesta, "403.html")
+        self.assertContains(respuesta, "Acceso denegado", status_code=403)
+
+    def test_403_mantiene_el_menu_y_ofrece_volver_al_inicio(self):
+        respuesta = self.client.get("/administracion/", secure=True)
+        self.assertContains(respuesta, "Cerrar sesión", status_code=403)
+        self.assertContains(respuesta, "Volver al inicio", status_code=403)
+
+    def test_403_no_filtra_detalles_internos(self):
+        contenido = self.client.get("/coordinacion/", secure=True).content.decode()
+        for texto in ("Traceback", "PermissionDenied", "role_required"):
+            with self.subTest(texto=texto):
+                self.assertNotIn(texto, contenido)
