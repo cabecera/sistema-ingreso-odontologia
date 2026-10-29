@@ -1,13 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Listado de solicitudes | Odontología UdeC{% endblock %}
+{% block title %}Listado de solicitudes{% endblock %}
 
 {% block content %}
-<div class="container">
   <h1 class="mb-2">Listado de solicitudes</h1>
   <p class="text-secondary mb-4">
-    Tarea 47/49 &mdash; REQ-04. Las solicitudes pendientes aparecen primero,
-    de la más antigua a la más reciente, para priorizar a quien lleva más
-    tiempo esperando.
+    Las solicitudes pendientes aparecen primero, de la más antigua a la más
+    reciente, para priorizar a quien lleva más tiempo esperando.
   </p>
 
   <h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
@@ -69,5 +67,4 @@
   {% else %}
     <p class="text-secondary">Aún no hay solicitudes derivadas.</p>
   {% endif %}
-</div>
 {% endblock %}

@@ -38,7 +38,7 @@ def listado_solicitudes(request):
     """
     pendientes = Solicitud.objects.filter(
         estado=Solicitud.Estado.PENDIENTE
-    ).select_related("especialidad").order_by("fecha_creacion")
+    ).select_related("especialidad").order_by("fecha_creacion", "pk")
 
     derivadas = Solicitud.objects.filter(
         estado=Solicitud.Estado.DERIVADA
