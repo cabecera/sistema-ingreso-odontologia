@@ -10,4 +10,8 @@ app_name = "coordinacion"
 
 urlpatterns = [
     path("", views.panel_coordinacion, name="panel"),
+    # ============================================
+    # Tasks 47/49: Listado de solicitudes (REQ-04)
+    # ============================================
+    path("listado/", views.listado_solicitudes, name="listado"),
 ]

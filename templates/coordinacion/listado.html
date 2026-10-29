@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Listado de solicitudes{% endblock %}
+
+{% block content %}
+  <h1 class="mb-2">Listado de solicitudes</h1>
+  <p class="text-secondary mb-4">
+    Las solicitudes pendientes aparecen primero, de la más antigua a la más
+    reciente, para priorizar a quien lleva más tiempo esperando.
+  </p>
+
+  <h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
+  {% if pendientes %}
+    <div class="table-responsive mb-5">
+      <table class="table table-hover align-middle bg-white">
+        <thead>
+          <tr>
+            <th scope="col">Paciente</th>
+            <th scope="col">RUT</th>
+            <th scope="col">Especialidad</th>
+            <th scope="col">Fecha de ingreso</th>
+            <th scope="col">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for solicitud in pendientes %}
+          <tr>
+            <td>{{ solicitud.nombre_completo }}</td>
+            <td>{{ solicitud.rut }}</td>
+            <td>{{ solicitud.especialidad }}</td>
+            <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
+            <td><span class="badge text-bg-warning">Pendiente</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-secondary mb-5">No hay solicitudes pendientes por el momento.</p>
+  {% endif %}
+
+  <h2 class="h5 mb-3">Derivadas ({{ derivadas|length }})</h2>
+  {% if derivadas %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white">
+        <thead>
+          <tr>
+            <th scope="col">Paciente</th>
+            <th scope="col">RUT</th>
+            <th scope="col">Especialidad</th>
+            <th scope="col">Fecha de ingreso</th>
+            <th scope="col">Estudiante asignado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for solicitud in derivadas %}
+          <tr>
+            <td>{{ solicitud.nombre_completo }}</td>
+            <td>{{ solicitud.rut }}</td>
+            <td>{{ solicitud.especialidad }}</td>
+            <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
+            <td>{{ solicitud.estudiante_asignado|default:"Sin asignar" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-secondary">Aún no hay solicitudes derivadas.</p>
+  {% endif %}
+{% endblock %}
