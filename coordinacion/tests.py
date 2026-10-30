@@ -135,3 +135,58 @@ class ListadoSolicitudesContenidoTests(TestCase):
         respuesta = self.client.get(self.url)
         contenido = respuesta.content.decode()
         self.assertNotIn("antecedentes de salud", contenido.lower())
+        
+class FiltrosSolicitudesCoordinacionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.url = reverse("listado_solicitudes")
+        cls.coord = User.objects.get_or_create(username="coord_test", password="x")[0]
+        cls.coord.groups.add(Group.objects.get_or_create(name="Coordinador")[0])
+        
+        # Especialidades de prueba
+        cls.esp1 = Especialidad.objects.create(nombre="Endodoncia", activa=True)
+        cls.esp2 = Especialidad.objects.create(nombre="Ortodoncia", activa=True)
+        
+        # Solicitudes de prueba con distintas fechas y especialidades
+        cls.sol1 = Solicitud.objects.create(
+            nombre_completo="Paciente 1",
+            rut="11111111-1",
+            telefono="56911111111",
+            motivo_consulta="Dolor",
+            especialidad=cls.esp1,
+            estado=Solicitud.Estado.PENDIENTE,
+            fecha_creacion="2026-05-10 10:00:00"
+        )
+        cls.sol2 = Solicitud.objects.create(
+            nombre_completo="Paciente 2",
+            rut="22222222-2",
+            telefono="56922222222",
+            motivo_consulta="Control",
+            especialidad=cls.esp2,
+            estado=Solicitud.Estado.DERIVADA,
+            fecha_creacion="2026-06-15 11:00:00"
+        )
+
+    def setUp(self):
+        self.client.login(username="coord_test", password="x")
+
+    def test_filtro_por_especialidad(self):
+        response = self.client.get(self.url + f'?especialidad={self.esp1.nombre}')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.sol1, response.context['pendientes'])
+        self.assertNotIn(self.sol2, response.context['derivadas'])
+
+    def test_filtro_por_fecha(self):
+        response = self.client.get(self.url + '?fecha=2026-05-10')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.sol1, response.context['pendientes'])
+
+    def test_filtro_por_estado(self):
+        response = self.client.get(self.url + '?estado=DERIVADA')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.sol2, response.context['derivadas'])
+
+    def test_filtro_fecha_invalida_no_da_error_500(self):
+        # Valida que ?fecha=abc devuelva status 200 y no colapse en Error 500
+        response = self.client.get(self.url + '?fecha=abc')
+        self.assertEqual(response.status_code, 200)
