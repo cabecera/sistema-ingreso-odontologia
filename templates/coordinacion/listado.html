@@ -1,12 +1,58 @@
 {% extends "base.html" %}
 {% block title %}Listado de solicitudes{% endblock %}
 
+{% extends "base.html" %}
+{% block title %}Listado de solicitudes{% endblock %}
+
 {% block content %}
-  <h1 class="mb-2">Listado de solicitudes</h1>
-  <p class="text-secondary mb-4">
+<h1 class="mb-2">Listado de solicitudes</h1>
+<p class="text-secondary mb-4">
     Las solicitudes pendientes aparecen primero, de la más antigua a la más
     reciente, para priorizar a quien lleva más tiempo esperando.
-  </p>
+</p>
+
+<!-- ========================================== -->
+<!-- FORMULARIO DE FILTROS (V.2)              -->
+<!-- ========================================== -->
+<form method="GET" class="row g-3 mb-4">
+    <!-- Filtro de Especialidad Dinámico -->
+    <div class="col-md-3">
+        <label for="especialidad" class="form-label">Especialidad</label>
+        <select name="especialidad" id="especialidad" class="form-select">
+            <option value="">-- Todas las especialidades --</option>
+            {% for esp in especialidades %}
+                <option value="{{ esp.nombre }}" {% if especialidad_filtro == esp.nombre %}selected{% endif %}>
+                    {{ esp.nombre }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Filtro de Fecha -->
+    <div class="col-md-3">
+        <label for="fecha" class="form-label">Fecha</label>
+        <input type="date" name="fecha" id="fecha" class="form-control" value="{{ fecha_filtro }}">
+    </div>
+
+    <!-- Filtro de Estado -->
+    <div class="col-md-3">
+        <label for="estado" class="form-label">Estado</label>
+        <select name="estado" id="estado" class="form-select">
+            <option value="">-- Todos los estados --</option>
+            <option value="PENDIENTE" {% if estado_filtro == "PENDIENTE" %}selected{% endif %}>Pendiente</option>
+            <option value="DERIVADA" {% if estado_filtro == "DERIVADA" %}selected{% endif %}>Derivada</option>
+        </select>
+    </div>
+
+    <!-- Botón de Filtrar -->
+    <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+    </div>
+</form>
+<!-- ========================================== -->
+
+<h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
+<!-- ... (el resto de tu tabla de pendientes sigue aquí abajo igual que lo tienes) ... -->
 
   <h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
   {% if pendientes %}
