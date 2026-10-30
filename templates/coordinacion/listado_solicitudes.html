@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Listado y Gestión de Solicitudes</h2>
+    <hr>
+
+    <!-- FORMULARIO DE FILTROS DE BÚSQUEDA (Task 48) -->
+    <form method="GET" class="row g-3 mb-4 p-3 bg-light border rounded">
+
+
+      <!-- Filtro por Especialidad (Desplegable completo) -->
+<div class="col-md-3">
+    <label for="especialidad" class="form-label">Especialidad</label>
+    <select name="especialidad" id="especialidad" class="form-select">
+        <option value="">-- Todas las especialidades --</option>
+        <option value="Caries" {% if especialidad_filtro == 'Caries' %}selected{% endif %}>Caries</option>
+        <option value="Cirugía" {% if especialidad_filtro == 'Cirugía' %}selected{% endif %}>Cirugía</option>
+        <option value="Endodoncia" {% if especialidad_filtro == 'Endodoncia' %}selected{% endif %}>Endodoncia</option>
+        <option value="Implantología" {% if especialidad_filtro == 'Implantología' %}selected{% endif %}>Implantología</option>
+        <option value="Operatoria" {% if especialidad_filtro == 'Operatoria' %}selected{% endif %}>Operatoria</option>
+        <option value="Ortodoncia" {% if especialidad_filtro == 'Ortodoncia' %}selected{% endif %}>Ortodoncia</option>
+        <option value="Periodoncia" {% if especialidad_filtro == 'Periodoncia' %}selected{% endif %}>Periodoncia</option>
+        <option value="Prótesis fija" {% if especialidad_filtro == 'Prótesis fija' %}selected{% endif %}>Prótesis fija</option>
+        <option value="Prótesis removible" {% if especialidad_filtro == 'Prótesis removible' %}selected{% endif %}>Prótesis removible</option>
+    </select>
+</div>
+
+        <!-- Filtro por Fecha -->
+        <div class="col-md-3">
+            <label for="fecha" class="form-label">Fecha</label>
+            <input type="date" name="fecha" id="fecha" class="form-control" value="{{ fecha_filtro }}">
+        </div>
+
+        <!-- Filtro por Estado -->
+        <div class="col-md-3">
+            <label for="estado" class="form-label">Estado</label>
+            <select name="estado" id="estado" class="form-select">
+                <option value="">-- Todos los estados --</option>
+                <option value="pendiente" {% if estado_filtro == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                <option value="derivado" {% if estado_filtro == 'derivado' %}selected{% endif %}>Derivado</option>
+                <option value="atendido" {% if estado_filtro == 'atendido' %}selected{% endif %}>Atendido</option>
+            </select>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="col-md-3 d-flex align-items-end gap-2">
+            <button type="submit" class="btn btn-primary w-100">Buscar</button>
+            <a href="{% url 'coordinacion:listado_solicitudes' %}" class="btn btn-outline-secondary w-100">Limpiar</a>
+        </div>
+    </form>
+
+    <!-- TABLA DE RESULTADOS -->
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Paciente (RUT)</th>
+                    <th>Especialidad</th>
+                    <th>Fecha de Creación</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for solicitud in solicitudes %}
+                <tr>
+                    <td>{{ solicitud.id }}</td>
+                    <td>{{ solicitud.rut }}</td>
+                    <td>{{ solicitud.especialidad }}</td>
+                    <td>{{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        <span class="badge bg-secondary">{{ solicitud.estado }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        No se encontraron solicitudes con los filtros seleccionados.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
