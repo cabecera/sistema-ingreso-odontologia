@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
@@ -135,3 +136,160 @@ class ListadoSolicitudesContenidoTests(TestCase):
         respuesta = self.client.get(self.url)
         contenido = respuesta.content.decode()
         self.assertNotIn("antecedentes de salud", contenido.lower())
+
+
+# ============================================
+# Task 48: Filtros de búsqueda del listado (REQ-04)
+# --------------------------------------------
+# Los filtros llegan por GET, o sea, los controla el usuario (aunque
+# el formulario solo envíe valores válidos, cualquiera puede editar la
+# URL o usar curl). Se prueba que filtren bien y que los valores
+# inválidos o maliciosos NUNCA rompan el listado (sin error 500).
+# ============================================
+class ListadoFiltrosTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.url = reverse("coordinacion:listado")
+
+        grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
+        cls.coordinador = User.objects.create_user("coord_filtros", password="x")
+        cls.coordinador.groups.add(grupo_coordinador)
+
+        cls.esp_a = Especialidad.objects.create(nombre="Esp A (tests filtros)")
+        cls.esp_b = Especialidad.objects.create(nombre="Esp B (tests filtros)")
+
+        def crear(nombre, rut, esp, estado=Solicitud.Estado.PENDIENTE):
+            return Solicitud.objects.create(
+                nombre_completo=nombre,
+                rut=rut,
+                fecha_nacimiento=date(1990, 1, 1),
+                telefono="+56912345678",
+                motivo_consulta="Dolor",
+                especialidad=esp,
+                estado=estado,
+            )
+
+        cls.a_pendiente = crear("Pendiente EspA", "11111111-1", cls.esp_a)
+        cls.b_pendiente = crear("Pendiente EspB", "22222222-2", cls.esp_b)
+        cls.a_derivada = crear(
+            "Derivada EspA", "33333333-3", cls.esp_a, Solicitud.Estado.DERIVADA
+        )
+
+        # fecha_creacion es auto_now_add: se fija con update() para controlarla.
+        # 15:00 UTC = 11:00/12:00 en Chile, o sea, el mismo día calendario local.
+        zona = timezone.get_current_timezone()
+        cls.dia_antiguo = date(2026, 3, 10)
+        cls.dia_reciente = date(2026, 4, 20)
+        Solicitud.objects.filter(pk=cls.a_pendiente.pk).update(
+            fecha_creacion=timezone.make_aware(datetime(2026, 3, 10, 12, 0), zona)
+        )
+        Solicitud.objects.filter(
+            pk__in=[cls.b_pendiente.pk, cls.a_derivada.pk]
+        ).update(
+            fecha_creacion=timezone.make_aware(datetime(2026, 4, 20, 12, 0), zona)
+        )
+
+    def setUp(self):
+        self.client.force_login(self.coordinador)
+
+    def _get(self, **params):
+        return self.client.get(self.url, params, secure=True)
+
+    def _nombres(self, respuesta):
+        return {
+            s.nombre_completo
+            for s in list(respuesta.context["pendientes"])
+            + list(respuesta.context["derivadas"])
+        }
+
+    # ---------- Filtros que funcionan ----------
+
+    def test_sin_filtros_muestra_todo(self):
+        respuesta = self._get()
+        self.assertEqual(
+            self._nombres(respuesta),
+            {"Pendiente EspA", "Pendiente EspB", "Derivada EspA"},
+        )
+
+    def test_filtra_por_especialidad(self):
+        respuesta = self._get(especialidad=self.esp_a.pk)
+        self.assertEqual(self._nombres(respuesta), {"Pendiente EspA", "Derivada EspA"})
+
+    def test_filtra_por_fecha(self):
+        respuesta = self._get(fecha=self.dia_antiguo.isoformat())
+        self.assertEqual(self._nombres(respuesta), {"Pendiente EspA"})
+
+    def test_filtra_por_estado_pendiente(self):
+        respuesta = self._get(estado="PENDIENTE")
+        self.assertEqual(self._nombres(respuesta), {"Pendiente EspA", "Pendiente EspB"})
+        self.assertNotContains(respuesta, "Derivada EspA")
+
+    def test_filtra_por_estado_derivada(self):
+        respuesta = self._get(estado="DERIVADA")
+        self.assertEqual(self._nombres(respuesta), {"Derivada EspA"})
+
+    def test_filtros_combinados(self):
+        respuesta = self._get(
+            especialidad=self.esp_a.pk,
+            fecha=self.dia_reciente.isoformat(),
+            estado="DERIVADA",
+        )
+        self.assertEqual(self._nombres(respuesta), {"Derivada EspA"})
+
+    def test_la_priorizacion_se_mantiene_con_filtros(self):
+        # Filtrar no debe alterar el orden de las pendientes (REQ-04).
+        respuesta = self._get(estado="PENDIENTE")
+        self.assertEqual(
+            list(respuesta.context["pendientes"]),
+            [self.a_pendiente, self.b_pendiente],
+        )
+
+    def test_filtro_sin_resultados_muestra_mensaje(self):
+        respuesta = self._get(fecha="2020-01-01")
+        self.assertEqual(self._nombres(respuesta), set())
+        self.assertContains(respuesta, "coincide con los filtros")
+
+    # ---------- Entradas inválidas o maliciosas ----------
+
+    def test_fecha_invalida_no_rompe_el_listado(self):
+        respuesta = self._get(fecha="abc")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(respuesta.context["fecha_invalida"])
+        self.assertContains(respuesta, "La fecha ingresada no es válida")
+        # El filtro se ignora: se ve todo, y el texto recibido no se refleja.
+        self.assertEqual(len(self._nombres(respuesta)), 3)
+        self.assertNotContains(respuesta, 'value="abc"')
+
+    def test_fechas_en_los_limites_no_rompen_el_listado(self):
+        for valor in ("9999-12-31", "0001-01-01", "2026-02-30", "2026-13-01"):
+            with self.subTest(fecha=valor):
+                self.assertEqual(self._get(fecha=valor).status_code, 200)
+
+    def test_especialidad_invalida_se_ignora(self):
+        for valor in ("abc", "999999", "-1", "1; DROP TABLE x", "9" * 40, "²"):
+            with self.subTest(especialidad=valor):
+                respuesta = self._get(especialidad=valor)
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(len(self._nombres(respuesta)), 3)
+
+    def test_estado_invalido_se_ignora(self):
+        for valor in ("HACKEADO", "' OR '1'='1", "pendiente"):
+            with self.subTest(estado=valor):
+                respuesta = self._get(estado=valor)
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(len(self._nombres(respuesta)), 3)
+
+    def test_script_en_los_parametros_no_se_refleja(self):
+        payload = "<script>alert(1)</script>"
+        respuesta = self._get(fecha=payload, estado=payload, especialidad=payload)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertNotContains(respuesta, payload)
+
+    # ---------- Los filtros no saltan el RBAC ----------
+
+    def test_estudiante_sigue_recibiendo_403_con_filtros(self):
+        grupo_estudiante, _ = Group.objects.get_or_create(name="Estudiante")
+        estudiante = User.objects.create_user("est_filtros", password="x")
+        estudiante.groups.add(grupo_estudiante)
+        self.client.force_login(estudiante)
+        self.assertEqual(self._get(estado="PENDIENTE").status_code, 403)
