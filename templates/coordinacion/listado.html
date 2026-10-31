@@ -8,6 +8,46 @@
     reciente, para priorizar a quien lleva más tiempo esperando.
   </p>
 
+  <form method="get" class="mb-4 p-3 bg-white border rounded" aria-label="Filtros del listado">
+  <div class="row g-3 align-items-end">
+    <div class="col-12 col-md-4">
+      <label for="filtro-especialidad" class="form-label">Especialidad</label>
+      <select id="filtro-especialidad" name="especialidad" class="form-select">
+        <option value="">Todas</option>
+        {% for e in especialidades %}
+          <option value="{{ e.pk }}" {% if especialidad_filtro == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-3">
+      <label for="filtro-fecha" class="form-label">Fecha de ingreso</label>
+      <input type="date" id="filtro-fecha" name="fecha" value="{{ fecha_filtro }}" class="form-control">
+    </div>
+    <div class="col-12 col-md-3">
+      <label for="filtro-estado" class="form-label">Estado</label>
+      <select id="filtro-estado" name="estado" class="form-select">
+        <option value="">Todos</option>
+        {% for valor, nombre in estados %}
+          <option value="{{ valor }}" {% if estado_filtro == valor %}selected{% endif %}>{{ nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Filtrar</button>
+      {% if hay_filtros %}
+        <a class="btn btn-outline-secondary" href="{% url 'coordinacion:listado' %}">Limpiar</a>
+      {% endif %}
+    </div>
+  </div>
+  </form>
+
+  {% if fecha_invalida %}
+    <div class="alert alert-warning" role="alert">
+      La fecha ingresada no es válida, así que se ignoró ese filtro.
+    </div>
+  {% endif %}
+
+  {% if estado_filtro != "DERIVADA" %}
   <h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
   {% if pendientes %}
     <div class="table-responsive mb-5">
@@ -35,9 +75,11 @@
       </table>
     </div>
   {% else %}
-    <p class="text-secondary mb-5">No hay solicitudes pendientes por el momento.</p>
+    <p class="text-secondary mb-5">{% if hay_filtros %}Ninguna solicitud pendiente coincide con los filtros.{% else %}No hay solicitudes pendientes por el momento.{% endif %}</p>
+  {% endif %}
   {% endif %}
 
+  {% if estado_filtro != "PENDIENTE" %}
   <h2 class="h5 mb-3">Derivadas ({{ derivadas|length }})</h2>
   {% if derivadas %}
     <div class="table-responsive">
@@ -65,6 +107,7 @@
       </table>
     </div>
   {% else %}
-    <p class="text-secondary">Aún no hay solicitudes derivadas.</p>
+    <p class="text-secondary">{% if hay_filtros %}Ninguna solicitud derivada coincide con los filtros.{% else %}Aún no hay solicitudes derivadas.{% endif %}</p>
+  {% endif %}
   {% endif %}
 {% endblock %}
