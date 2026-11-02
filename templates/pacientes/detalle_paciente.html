@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Detalle del paciente{% endblock %}
+
+{% block content %}
+  <div class="page-narrow">
+    <h1 class="mb-2">{{ solicitud.nombre_completo }}</h1>
+    <p class="text-secondary mb-4">
+      Solicitud #{{ solicitud.pk }} &middot; {{ solicitud.get_estado_display }}
+    </p>
+
+    {# Minimización de datos (REQ-08): no se muestran antecedentes de salud. #}
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">RUT</dt>
+          <dd class="col-sm-8">{{ solicitud.rut }}</dd>
+
+          <dt class="col-sm-4">Fecha de nacimiento</dt>
+          <dd class="col-sm-8">{{ solicitud.fecha_nacimiento|date:"d-m-Y" }}</dd>
+
+          <dt class="col-sm-4">Teléfono</dt>
+          <dd class="col-sm-8">{{ solicitud.telefono }}</dd>
+
+          <dt class="col-sm-4">Especialidad</dt>
+          <dd class="col-sm-8">{{ solicitud.especialidad }}</dd>
+
+          <dt class="col-sm-4">Fecha de ingreso</dt>
+          <dd class="col-sm-8">{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</dd>
+
+          <dt class="col-sm-4">Motivo de consulta</dt>
+          <dd class="col-sm-8">{{ solicitud.motivo_consulta|linebreaksbr }}</dd>
+
+          <dt class="col-sm-4">Experiencia previa</dt>
+          <dd class="col-sm-8">{{ solicitud.experiencia_previa|default:"No indicada"|linebreaksbr }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <a class="btn btn-outline-secondary mt-4" href="/estudiantes/mis-pacientes/">
+      Volver a mis pacientes
+    </a>
+  </div>
+{% endblock %}
