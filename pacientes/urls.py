@@ -11,4 +11,5 @@ urlpatterns = [
     # La página de inicio es el formulario: es lo que ve el paciente.
     path("", views.nueva_solicitud, name="nueva_solicitud"),
     path("solicitud/enviada/", views.solicitud_enviada, name="solicitud_enviada"),
+    path('detalle/<int:pk>/', views.detalle_paciente, name='detalle_paciente'),
 ]
