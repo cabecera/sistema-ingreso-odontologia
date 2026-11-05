@@ -1,12 +1,14 @@
 from datetime import date, datetime, time, timedelta
 
-from django.shortcuts import render
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.utils import timezone
 
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
 from seguridad.decorators import role_required
+from seguridad.models import BitacoraAuditoria
 
 # Ejemplo para las vistas del modulo de coordinacion:
 
@@ -18,33 +20,6 @@ def panel_coordinacion(request):
     return render(request, 'coordinacion/dashboard.html')
 
 
-# ============================================
-# Tasks 47 y 49: Listado de solicitudes para el Coordinador
-# Issue padre: REQ-04 (Listado y priorizacion de solicitudes)
-# --------------------------------------------
-# El decorador va puesto desde el principio (no se agrega
-# despues como parche): la tarea 49 "restringir el listado
-# solo al coordinador" queda resuelta aqui mismo, con el mismo
-# patron que ya usa panel_coordinacion.
-#
-# Priorizacion: las solicitudes PENDIENTE se muestran primero
-# (son las que requieren accion), ordenadas de la mas antigua
-# a la mas reciente, para que el Coordinador atienda primero a
-# quien lleva mas tiempo esperando. Las DERIVADA quedan despues,
-# ordenadas de la mas reciente a la mas antigua (Meta.ordering
-# del modelo), solo como referencia/historial.
-# ============================================
-# ============================================
-# Task 48: Filtros de búsqueda del listado (REQ-04)
-# --------------------------------------------
-# Filtros opcionales por GET: especialidad, fecha de ingreso y
-# estado. Los parámetros vienen del usuario, así que NUNCA se
-# usan tal cual: cada uno se valida en el servidor y, si no es
-# válido, se ignora (el listado no se rompe ni refleja el texto).
-#   - especialidad: debe ser el id de una especialidad del catálogo.
-#   - fecha: debe ser una fecha ISO válida (AAAA-MM-DD).
-#   - estado: debe ser uno de Solicitud.Estado.
-# ============================================
 def _rango_del_dia(fecha):
     """Inicio y fin (excluyente) del día en la zona horaria del sitio.
 
@@ -122,3 +97,35 @@ def listado_solicitudes(request):
             ),
         },
     )
+
+
+# ============================================
+# Task 54: Derivación formal y registro automático de auditoría
+# ============================================
+@role_required('Super Administrador', 'Coordinador')
+def derivar_solicitud(request, pk):
+    """
+    Permite derivar una solicitud de forma segura, validando su existencia,
+    evitando duplicados y registrando la acción en la bitácora de auditoría.
+    """
+    # Usar get_object_or_404 previene errores 500 si el ID no existe
+    solicitud = get_object_or_404(Solicitud, pk=pk)
+
+    # Validación extra: Evitar doble derivación accidental
+    if solicitud.estado == Solicitud.Estado.DERIVADA:
+        messages.warning(request, "Esta solicitud ya se encuentra derivada.")
+        return redirect("coordinacion:listado")
+
+    # Cambiar estado y guardar
+    solicitud.estado = Solicitud.Estado.DERIVADA
+    solicitud.save()
+
+    # Registro automático en la bitácora de auditoría (Task 54)
+    BitacoraAuditoria.objects.create(
+        usuario=request.user,
+        accion="Derivación de solicitud",
+        detalles=f"La solicitud #{solicitud.pk} fue derivada exitosamente."
+    )
+
+    messages.success(request, "Solicitud derivada correctamente.")
+    return redirect("coordinacion:listado")
