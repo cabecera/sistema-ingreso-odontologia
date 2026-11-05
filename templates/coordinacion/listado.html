@@ -59,6 +59,7 @@
             <th scope="col">Especialidad</th>
             <th scope="col">Fecha de ingreso</th>
             <th scope="col">Estado</th>
+            <th scope="col">Acción</th>
           </tr>
         </thead>
         <tbody>
@@ -69,6 +70,9 @@
             <td>{{ solicitud.especialidad }}</td>
             <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
             <td><span class="badge text-bg-warning">Pendiente</span></td>
+            <td>
+              <a href="{% url 'coordinacion:derivar_solicitud' pk=solicitud.pk %}" class="btn btn-sm btn-outline-primary">Derivar</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

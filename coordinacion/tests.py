@@ -1,12 +1,14 @@
 from datetime import date, datetime
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
+from seguridad.models import BitacoraAuditoria
+
 
 
 # ============================================
@@ -44,26 +46,26 @@ class ListadoSolicitudesRBACTests(TestCase):
 
     def test_sin_sesion_redirige_al_login(self):
         self.assertRedirects(
-            self.client.get(self.url),
+            self.client.get(self.url, secure=True),
             f"/login/?next={self.url}",
             fetch_redirect_response=False,
         )
 
     def test_estudiante_recibe_403(self):
         self.client.login(username="est_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
 
     def test_sin_rol_recibe_403(self):
         self.client.login(username="sinrol_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
 
     def test_coordinador_accede(self):
         self.client.login(username="coord_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)
 
     def test_super_administrador_accede(self):
         self.client.login(username="super_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)
 
 
 class ListadoSolicitudesContenidoTests(TestCase):
@@ -116,24 +118,24 @@ class ListadoSolicitudesContenidoTests(TestCase):
         self.client.login(username="coord_contenido", password="x")
 
     def test_pendientes_ordenadas_de_mas_antigua_a_mas_reciente(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         pendientes = list(respuesta.context["pendientes"])
         self.assertEqual(pendientes, [self.pendiente_antigua, self.pendiente_reciente])
 
     def test_derivadas_no_aparecen_entre_las_pendientes(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         pendientes = list(respuesta.context["pendientes"])
         self.assertNotIn(self.derivada, pendientes)
 
     def test_derivadas_aparecen_en_su_propia_lista(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         derivadas = list(respuesta.context["derivadas"])
         self.assertEqual(derivadas, [self.derivada])
 
     def test_no_muestra_antecedentes_de_salud(self):
         # Minimización de datos: el listado general no debe filtrar
         # antecedentes de salud, solo datos de gestión (REQ-04 vs REQ-08).
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         contenido = respuesta.content.decode()
         self.assertNotIn("antecedentes de salud", contenido.lower())
 
@@ -293,3 +295,48 @@ class ListadoFiltrosTests(TestCase):
         estudiante.groups.add(grupo_estudiante)
         self.client.force_login(estudiante)
         self.assertEqual(self._get(estado="PENDIENTE").status_code, 403)
+class DerivacionAuditoriaTestCase(TestCase):
+    """
+    Pruebas para verificar la correcta derivación de solicitudes 
+    y el registro automático en la bitácora de auditoría (Task 54).
+    """
+    @classmethod
+    def setUpTestData(cls):
+        cls.especialidad = Especialidad.objects.create(nombre="Ortodoncia Test")
+        cls.solicitud = Solicitud.objects.create(
+            nombre_completo="Paciente de Prueba",
+            rut="11.111.111-1",
+            telefono="+56911111111",
+            fecha_nacimiento=date(1995, 5, 15),
+            especialidad=cls.especialidad,
+            estado=Solicitud.Estado.PENDIENTE
+        )
+        # Crear usuario coordinador
+        cls.coordinador = User.objects.create_user(
+            username="coord_auditoria",
+            password="password123"
+        )
+        grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
+        cls.coordinador.groups.add(grupo_coordinador)
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(self.coordinador)
+
+    def test_derivar_solicitud_genera_auditoria(self):
+        url = reverse("coordinacion:derivar_solicitud", args=[self.solicitud.pk])
+        
+        # Usamos POST si la vista procesa la acción mediante formulario/botón
+        response = self.client.post(url, secure=True)
+
+        # Refrescar estado de la solicitud desde la BD
+        self.solicitud.refresh_from_db()
+
+        # Comprobar que cambió a derivada
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.DERIVADA)
+
+        # Comprobar que la Task 54 dejó el registro automático en la bitácora
+        auditoria = BitacoraAuditoria.objects.filter(accion="Derivación de solicitud").first()
+        self.assertIsNotNone(auditoria)
+        self.assertEqual(auditoria.usuario, self.coordinador)
+        self.assertIn(str(self.solicitud.pk), auditoria.detalles)

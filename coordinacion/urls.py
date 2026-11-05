@@ -14,4 +14,5 @@ urlpatterns = [
     # Tasks 47/49: Listado de solicitudes (REQ-04)
     # ============================================
     path("listado/", views.listado_solicitudes, name="listado"),
+    path("derivar/<int:pk>/", views.derivar_solicitud, name="derivar_solicitud"),
 ]
