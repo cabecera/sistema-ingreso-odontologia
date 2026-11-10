@@ -1,7 +1,10 @@
 from datetime import date, datetime, time, timedelta
 
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.http import HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from administracion.models import Especialidad
@@ -122,3 +125,37 @@ def listado_solicitudes(request):
             ),
         },
     )
+
+@role_required('Super Administrador', 'Coordinador')
+def derivar_solicitud(request, pk):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    solicitud = get_object_or_404(Solicitud, pk=pk)
+    estudiante_id = request.POST.get("estudiante_asignado", "").strip()
+    user_model = get_user_model()
+
+    try:
+        estudiante_pk = user_model._meta.pk.to_python(estudiante_id)
+    except (ValidationError, TypeError, ValueError):
+        estudiante_pk = None
+
+    estudiante = None
+    if estudiante_pk is not None:
+        estudiante = user_model.objects.filter(
+            pk=estudiante_pk,
+            groups__name="Estudiante",
+        ).first()
+
+    if estudiante is None:
+        messages.error(request, "Selecciona un usuario con rol de estudiante.")
+        return redirect("coordinacion:listado_solicitudes")
+
+    solicitud.estudiante_asignado = estudiante
+    solicitud.estado = Solicitud.Estado.DERIVADA
+    solicitud.derivado_por = request.user
+    solicitud.fecha_derivacion = timezone.now()
+    solicitud.save()
+
+    messages.success(request, "Solicitud derivada y registrada correctamente.")
+    return redirect("coordinacion:listado_solicitudes")

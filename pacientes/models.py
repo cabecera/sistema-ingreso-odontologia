@@ -120,6 +120,22 @@ class Solicitud(models.Model):
         related_name="solicitudes_asignadas",
         verbose_name="estudiante asignado",
     )
+
+    # Auditoría de la derivación: estudiante asignado, responsable y fecha.
+    derivado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_derivadas_por",
+        verbose_name="derivado por",
+    )
+    fecha_derivacion = models.DateTimeField(
+        "fecha de derivación",
+        null=True,
+        blank=True,
+    )
+
     # --- Campos de gestión, para el panel del Coordinador (REQ-04) ---
     estado = models.CharField(
         "estado",
