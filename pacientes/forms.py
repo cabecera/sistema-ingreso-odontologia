@@ -9,6 +9,7 @@
 # ============================================
 
 import re
+import unicodedata
 from datetime import date
 
 from django import forms
@@ -17,6 +18,33 @@ from django.core.validators import MaxLengthValidator
 from administracion.models import Especialidad
 
 from .models import Solicitud
+
+# ============================================
+# Task 55: Reforzar las validaciones de todos los formularios
+# Issue padre: REQ-10 (Validación y sanitización de entradas)
+# --------------------------------------------
+# Se agrega validación en el servidor para:
+#   - nombre_completo: solo letras (con tildes/ñ), espacios, guion,
+#     apóstrofe y punto; largo mínimo; espacios repetidos normalizados.
+#   - motivo_consulta: largo mínimo, para que no llegue "x" o "..." .
+#   - textos largos: se eliminan caracteres de control invisibles.
+# Esto se suma a lo que ya existía (RUT, fecha, teléfono, largos máximos).
+# ============================================
+
+NOMBRE_LARGO_MINIMO = 3
+MOTIVO_LARGO_MINIMO = 10
+CARACTERES_NOMBRE_PERMITIDOS = " '.-"
+
+
+def limpiar_texto(valor):
+    """Quita caracteres de control (categoría Unicode Cc) salvo salto de
+    línea y tabulación, y unifica los saltos de línea a \\n."""
+    valor = valor.replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(
+        ch for ch in valor
+        if ch in "\n\t" or unicodedata.category(ch) != "Cc"
+    ).strip()
+
 
 LIMITES_TEXTO = {
     "motivo_consulta": 500,
@@ -80,6 +108,38 @@ class SolicitudForm(forms.ModelForm):
         for campo in self.fields.values():
             es_lista = isinstance(campo.widget, forms.Select)
             campo.widget.attrs["class"] = "form-select" if es_lista else "form-control"
+
+    def clean_nombre_completo(self):
+        # Normaliza espacios ("Juan    Pérez" -> "Juan Pérez") y exige
+        # que sean solo letras y unos pocos signos propios de un nombre.
+        nombre = " ".join(self.cleaned_data["nombre_completo"].split())
+        if len(nombre) < NOMBRE_LARGO_MINIMO:
+            raise forms.ValidationError(
+                f"El nombre debe tener al menos {NOMBRE_LARGO_MINIMO} caracteres."
+            )
+        if not all(ch.isalpha() or ch in CARACTERES_NOMBRE_PERMITIDOS for ch in nombre):
+            raise forms.ValidationError(
+                "El nombre solo puede tener letras, espacios, guion, apóstrofe y punto."
+            )
+        if sum(ch.isalpha() for ch in nombre) < 2:
+            raise forms.ValidationError("Ingresa un nombre válido.")
+        return nombre
+
+    def clean_motivo_consulta(self):
+        motivo = limpiar_texto(self.cleaned_data["motivo_consulta"])
+        if len(motivo) < MOTIVO_LARGO_MINIMO:
+            raise forms.ValidationError(
+                f"Describe el motivo con al menos {MOTIVO_LARGO_MINIMO} caracteres."
+            )
+        return motivo
+
+    def clean(self):
+        cleaned = super().clean()
+        # Limpieza de caracteres de control en el resto de los textos largos.
+        for nombre in ("experiencia_previa", "antecedentes_personales", "antecedentes_familiares"):
+            if nombre in cleaned and cleaned[nombre]:
+                cleaned[nombre] = limpiar_texto(cleaned[nombre])
+        return cleaned
 
     def clean_telefono(self):
         # Acepta formatos como "+56 9 1234 5678" o "(2) 2345-6789",
