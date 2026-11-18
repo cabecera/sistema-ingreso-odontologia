@@ -25,7 +25,7 @@ class ListadoSolicitudesRBACTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.url = reverse("coordinacion:listado")
+        cls.url = reverse("coordinacion:listado_solicitudes")
 
         grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
         grupo_estudiante, _ = Group.objects.get_or_create(name="Estudiante")
@@ -44,26 +44,26 @@ class ListadoSolicitudesRBACTests(TestCase):
 
     def test_sin_sesion_redirige_al_login(self):
         self.assertRedirects(
-            self.client.get(self.url),
+            self.client.get(self.url, secure=True),
             f"/login/?next={self.url}",
             fetch_redirect_response=False,
         )
 
     def test_estudiante_recibe_403(self):
         self.client.login(username="est_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
 
     def test_sin_rol_recibe_403(self):
         self.client.login(username="sinrol_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 403)
 
     def test_coordinador_accede(self):
         self.client.login(username="coord_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)
 
     def test_super_administrador_accede(self):
         self.client.login(username="super_test", password="x")
-        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 200)
 
 
 class ListadoSolicitudesContenidoTests(TestCase):
@@ -71,7 +71,7 @@ class ListadoSolicitudesContenidoTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.url = reverse("coordinacion:listado")
+        cls.url = reverse("coordinacion:listado_solicitudes")
 
         grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
         cls.coordinador = User.objects.create_user("coord_contenido", password="x")
@@ -116,24 +116,24 @@ class ListadoSolicitudesContenidoTests(TestCase):
         self.client.login(username="coord_contenido", password="x")
 
     def test_pendientes_ordenadas_de_mas_antigua_a_mas_reciente(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         pendientes = list(respuesta.context["pendientes"])
         self.assertEqual(pendientes, [self.pendiente_antigua, self.pendiente_reciente])
 
     def test_derivadas_no_aparecen_entre_las_pendientes(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         pendientes = list(respuesta.context["pendientes"])
         self.assertNotIn(self.derivada, pendientes)
 
     def test_derivadas_aparecen_en_su_propia_lista(self):
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         derivadas = list(respuesta.context["derivadas"])
         self.assertEqual(derivadas, [self.derivada])
 
     def test_no_muestra_antecedentes_de_salud(self):
         # Minimización de datos: el listado general no debe filtrar
         # antecedentes de salud, solo datos de gestión (REQ-04 vs REQ-08).
-        respuesta = self.client.get(self.url)
+        respuesta = self.client.get(self.url, secure=True)
         contenido = respuesta.content.decode()
         self.assertNotIn("antecedentes de salud", contenido.lower())
 
@@ -149,7 +149,7 @@ class ListadoSolicitudesContenidoTests(TestCase):
 class ListadoFiltrosTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.url = reverse("coordinacion:listado")
+        cls.url = reverse("coordinacion:listado_solicitudes")
 
         grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
         cls.coordinador = User.objects.create_user("coord_filtros", password="x")
@@ -293,3 +293,90 @@ class ListadoFiltrosTests(TestCase):
         estudiante.groups.add(grupo_estudiante)
         self.client.force_login(estudiante)
         self.assertEqual(self._get(estado="PENDIENTE").status_code, 403)
+
+
+class DerivarSolicitudTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
+        grupo_estudiante, _ = Group.objects.get_or_create(name="Estudiante")
+
+        cls.coordinador = User.objects.create_user("coord_derivar")
+        cls.coordinador.groups.add(grupo_coordinador)
+
+        cls.estudiante = User.objects.create_user("est_derivar")
+        cls.estudiante.groups.add(grupo_estudiante)
+
+        cls.otro_usuario = User.objects.create_user("usuario_no_estudiante")
+        cls.especialidad = Especialidad.objects.create(
+            nombre="Especialidad de Prueba (derivación)"
+        )
+        cls.solicitud = Solicitud.objects.create(
+            nombre_completo="Paciente de Prueba",
+            rut="44444444-4",
+            fecha_nacimiento=date(1990, 1, 1),
+            telefono="+56912345678",
+            motivo_consulta="Dolor",
+            especialidad=cls.especialidad,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.coordinador)
+        self.url = reverse(
+            "coordinacion:derivar_solicitud",
+            args=[self.solicitud.pk],
+        )
+
+    def test_deriva_y_guarda_estudiante_responsable_y_fecha(self):
+        respuesta = self.client.post(
+            self.url,
+            {"estudiante_asignado": str(self.estudiante.pk)},
+            secure=True,
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(
+            respuesta["Location"],
+            reverse("coordinacion:listado_solicitudes"),
+        )
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estudiante_asignado, self.estudiante)
+        self.assertEqual(self.solicitud.derivado_por, self.coordinador)
+        self.assertIsNotNone(self.solicitud.fecha_derivacion)
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.DERIVADA)
+
+    def test_rechaza_usuario_que_no_es_estudiante(self):
+        respuesta = self.client.post(
+            self.url,
+            {"estudiante_asignado": str(self.otro_usuario.pk)},
+            secure=True,
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(
+            respuesta["Location"],
+            reverse("coordinacion:listado_solicitudes"),
+        )
+        self.solicitud.refresh_from_db()
+        self.assertIsNone(self.solicitud.estudiante_asignado)
+        self.assertIsNone(self.solicitud.derivado_por)
+        self.assertIsNone(self.solicitud.fecha_derivacion)
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+
+    def test_rechaza_identificador_invalido(self):
+        respuesta = self.client.post(
+            self.url,
+            {"estudiante_asignado": "no-es-un-id"},
+            secure=True,
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(
+            respuesta["Location"],
+            reverse("coordinacion:listado_solicitudes"),
+        )
+        self.solicitud.refresh_from_db()
+        self.assertIsNone(self.solicitud.estudiante_asignado)
+
+    def test_solo_acepta_post(self):
+        self.assertEqual(self.client.get(self.url, secure=True).status_code, 405)
