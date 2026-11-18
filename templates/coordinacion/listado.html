@@ -58,7 +58,7 @@
             <th scope="col">RUT</th>
             <th scope="col">Especialidad</th>
             <th scope="col">Fecha de ingreso</th>
-            <th scope="col">Estado</th>
+            <th scope="col">Derivar a</th>
           </tr>
         </thead>
         <tbody>
@@ -68,7 +68,23 @@
             <td>{{ solicitud.rut }}</td>
             <td>{{ solicitud.especialidad }}</td>
             <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
-            <td><span class="badge text-bg-warning">Pendiente</span></td>
+            <td>
+              {% if estudiantes %}
+              <form method="post" action="{% url 'coordinacion:derivar_solicitud' solicitud.pk %}" class="d-flex gap-2">
+                {% csrf_token %}
+                <label for="estudiante-{{ solicitud.pk }}" class="visually-hidden">Estudiante para {{ solicitud.nombre_completo }}</label>
+                <select id="estudiante-{{ solicitud.pk }}" name="estudiante_asignado" class="form-select form-select-sm" required>
+                  <option value="">Elegir estudiante…</option>
+                  {% for e in estudiantes %}
+                    <option value="{{ e.pk }}">{{ e.get_full_name|default:e.username }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">Derivar</button>
+              </form>
+              {% else %}
+                <span class="text-secondary small">No hay estudiantes activos</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -91,6 +107,8 @@
             <th scope="col">Especialidad</th>
             <th scope="col">Fecha de ingreso</th>
             <th scope="col">Estudiante asignado</th>
+            <th scope="col">Derivada por</th>
+            <th scope="col">Fecha de derivación</th>
           </tr>
         </thead>
         <tbody>
@@ -101,6 +119,8 @@
             <td>{{ solicitud.especialidad }}</td>
             <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
             <td>{{ solicitud.estudiante_asignado|default:"Sin asignar" }}</td>
+            <td>{{ solicitud.derivado_por|default:"—" }}</td>
+            <td>{{ solicitud.fecha_derivacion|date:"d-m-Y H:i"|default:"—" }}</td>
           </tr>
           {% endfor %}
         </tbody>
