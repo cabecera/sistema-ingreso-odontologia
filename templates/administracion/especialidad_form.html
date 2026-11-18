@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="page-narrow">
+  <h1>{{ titulo }}</h1>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% for campo in form %}
+      <div class="mb-3{% if campo.name == 'activa' %} form-check{% endif %}">
+        {% if campo.name == 'activa' %}
+          {{ campo }}
+          <label for="{{ campo.id_for_label }}" class="form-check-label">{{ campo.label }}</label>
+        {% else %}
+          <label for="{{ campo.id_for_label }}" class="form-label">{{ campo.label }}</label>
+          {{ campo }}
+        {% endif %}
+        {% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}
+        {% for error in campo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'administracion:especialidades' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

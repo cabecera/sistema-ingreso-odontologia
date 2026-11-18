@@ -1,13 +1,16 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Count
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 
 from seguridad.decorators import role_required
 from seguridad.models import BitacoraAuditoria
 
-from .forms import UsuarioNuevoForm
+from administracion.models import Especialidad
+
+from .forms import EspecialidadForm, UsuarioNuevoForm
 
 #Arreglar
 @role_required('Super Administrador')
@@ -86,3 +89,97 @@ def usuario_cambiar_estado(request, pk):
         "Usuario activado." if usuario.is_active else "Usuario desactivado.",
     )
     return redirect('administracion:usuarios')
+
+
+# ============================================
+# Task 60: Gestión de especialidades (REQ-14)
+# --------------------------------------------
+# Solo el Super Administrador. No hay "borrar": una especialidad con
+# solicitudes está protegida (on_delete=PROTECT) y además se quiere
+# conservar el historial. Se desactiva y deja de ofrecerse en el
+# formulario público (ver pacientes/forms.py). Cada cambio queda en la
+# bitácora.
+# ============================================
+@role_required('Super Administrador')
+def lista_especialidades(request):
+    especialidades = Especialidad.objects.annotate(
+        total_solicitudes=Count('solicitudes')
+    ).order_by('nombre')
+    return render(
+        request,
+        'administracion/especialidades.html',
+        {'especialidades': especialidades},
+    )
+
+
+def _guardar_especialidad(request, form, accion, mensaje):
+    with transaction.atomic():
+        especialidad = form.save()
+        BitacoraAuditoria.objects.create(
+            usuario=request.user,
+            accion=accion,
+            detalles=f"Especialidad '{especialidad.nombre}' (id {especialidad.pk}).",
+        )
+    messages.success(request, mensaje)
+    return redirect('administracion:especialidades')
+
+
+@role_required('Super Administrador')
+def especialidad_nueva(request):
+    if request.method == 'POST':
+        form = EspecialidadForm(request.POST)
+        if form.is_valid():
+            return _guardar_especialidad(
+                request, form, "Creación de especialidad",
+                "Especialidad creada correctamente.",
+            )
+    else:
+        form = EspecialidadForm(initial={'activa': True})
+    return render(
+        request,
+        'administracion/especialidad_form.html',
+        {'form': form, 'titulo': 'Nueva especialidad'},
+    )
+
+
+@role_required('Super Administrador')
+def especialidad_editar(request, pk):
+    especialidad = get_object_or_404(Especialidad, pk=pk)
+    if request.method == 'POST':
+        form = EspecialidadForm(request.POST, instance=especialidad)
+        if form.is_valid():
+            return _guardar_especialidad(
+                request, form, "Edición de especialidad",
+                "Especialidad actualizada correctamente.",
+            )
+    else:
+        form = EspecialidadForm(instance=especialidad)
+    return render(
+        request,
+        'administracion/especialidad_form.html',
+        {'form': form, 'titulo': 'Editar especialidad'},
+    )
+
+
+@role_required('Super Administrador')
+def especialidad_cambiar_estado(request, pk):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    especialidad = get_object_or_404(Especialidad, pk=pk)
+    with transaction.atomic():
+        especialidad.activa = not especialidad.activa
+        especialidad.save(update_fields=['activa'])
+        BitacoraAuditoria.objects.create(
+            usuario=request.user,
+            accion=(
+                "Activación de especialidad" if especialidad.activa
+                else "Desactivación de especialidad"
+            ),
+            detalles=f"Especialidad '{especialidad.nombre}' (id {especialidad.pk}).",
+        )
+    messages.success(
+        request,
+        "Especialidad activada." if especialidad.activa else "Especialidad desactivada.",
+    )
+    return redirect('administracion:especialidades')
