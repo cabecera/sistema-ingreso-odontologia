@@ -24,4 +24,17 @@ urlpatterns = [
         views.usuario_cambiar_estado,
         name="usuario_cambiar_estado",
     ),
+    # Task 60: gestión de especialidades
+    path("especialidades/", views.lista_especialidades, name="especialidades"),
+    path("especialidades/nueva/", views.especialidad_nueva, name="especialidad_nueva"),
+    path(
+        "especialidades/<int:pk>/editar/",
+        views.especialidad_editar,
+        name="especialidad_editar",
+    ),
+    path(
+        "especialidades/<int:pk>/estado/",
+        views.especialidad_cambiar_estado,
+        name="especialidad_cambiar_estado",
+    ),
 ]
