@@ -3,10 +3,12 @@
 {% block content %}
 <div class="page-narrow">
   <h1>Panel de administración</h1>
-  <p class="text-secondary">
-    Página de prueba (Task 44) para verificar que solo el Super Administrador
-    puede entrar aquí. El contenido real del panel se construye en sprints
-    futuros (REQ-14).
-  </p>
+  <p class="text-secondary">Gestión del personal que usa el sistema.</p>
+  <div class="list-group">
+    <a class="list-group-item list-group-item-action" href="{% url 'administracion:usuarios' %}">
+      <strong>Usuarios</strong>
+      <span class="d-block text-secondary small">Crear cuentas y activar o desactivar al personal.</span>
+    </a>
+  </div>
 </div>
 {% endblock %}
