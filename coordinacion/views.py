@@ -3,6 +3,7 @@ from datetime import date, datetime, time, timedelta
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -10,6 +11,7 @@ from django.utils import timezone
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
 from seguridad.decorators import role_required
+from seguridad.models import BitacoraAuditoria
 
 # Ejemplo para las vistas del modulo de coordinacion:
 
@@ -115,6 +117,11 @@ def listado_solicitudes(request):
             "pendientes": pendientes,
             "derivadas": derivadas,
             "especialidades": especialidades,
+            # Candidatos del selector "Derivar a": solo cuentas activas con
+            # rol Estudiante (la vista de derivación vuelve a validarlo).
+            "estudiantes": get_user_model().objects.filter(
+                groups__name="Estudiante", is_active=True
+            ).order_by("username"),
             "estados": Solicitud.Estado.choices,
             "especialidad_filtro": especialidad_filtro,
             "fecha_filtro": fecha_filtro,
@@ -126,12 +133,20 @@ def listado_solicitudes(request):
         },
     )
 
+# ============================================
+# Tasks 52 y 54: Derivación formal y registro de auditoría (REQ-05)
+# --------------------------------------------
+# Solo POST (cambia datos; un enlace GET permitiría CSRF). Dentro de una
+# transacción se bloquea la fila para que dos coordinadores no deriven la
+# misma solicitud a la vez, y la solicitud y la bitácora se guardan juntas
+# o no se guarda ninguna. La bitácora no incluye datos del paciente
+# (minimización de datos): solo el número de solicitud y el estudiante.
+# ============================================
 @role_required('Super Administrador', 'Coordinador')
 def derivar_solicitud(request, pk):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    solicitud = get_object_or_404(Solicitud, pk=pk)
     estudiante_id = request.POST.get("estudiante_asignado", "").strip()
     user_model = get_user_model()
 
@@ -145,17 +160,37 @@ def derivar_solicitud(request, pk):
         estudiante = user_model.objects.filter(
             pk=estudiante_pk,
             groups__name="Estudiante",
+            is_active=True,
         ).first()
+
+    # Una solicitud inexistente es 404 antes de evaluar el estudiante.
+    get_object_or_404(Solicitud, pk=pk)
 
     if estudiante is None:
         messages.error(request, "Selecciona un usuario con rol de estudiante.")
         return redirect("coordinacion:listado_solicitudes")
 
-    solicitud.estudiante_asignado = estudiante
-    solicitud.estado = Solicitud.Estado.DERIVADA
-    solicitud.derivado_por = request.user
-    solicitud.fecha_derivacion = timezone.now()
-    solicitud.save()
+    with transaction.atomic():
+        solicitud = get_object_or_404(Solicitud.objects.select_for_update(), pk=pk)
+
+        if solicitud.estado == Solicitud.Estado.DERIVADA:
+            messages.warning(request, "Esta solicitud ya se encuentra derivada.")
+            return redirect("coordinacion:listado_solicitudes")
+
+        solicitud.estudiante_asignado = estudiante
+        solicitud.estado = Solicitud.Estado.DERIVADA
+        solicitud.derivado_por = request.user
+        solicitud.fecha_derivacion = timezone.now()
+        solicitud.save()
+
+        BitacoraAuditoria.objects.create(
+            usuario=request.user,
+            accion="Derivación de solicitud",
+            detalles=(
+                f"Solicitud #{solicitud.pk} derivada al estudiante "
+                f"'{estudiante.get_username()}' (id {estudiante.pk})."
+            ),
+        )
 
     messages.success(request, "Solicitud derivada y registrada correctamente.")
     return redirect("coordinacion:listado_solicitudes")

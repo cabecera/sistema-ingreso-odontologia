@@ -1,12 +1,13 @@
 from datetime import date, datetime
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
+from seguridad.models import BitacoraAuditoria
 
 
 # ============================================
@@ -380,3 +381,140 @@ class DerivarSolicitudTests(TestCase):
 
     def test_solo_acepta_post(self):
         self.assertEqual(self.client.get(self.url, secure=True).status_code, 405)
+
+
+# ============================================
+# Task 54: registro automático de auditoría al derivar
+# --------------------------------------------
+# Cada derivación exitosa deja una fila en BitacoraAuditoria; los
+# intentos rechazados no dejan nada. Además se prueba el RBAC de la
+# acción, la protección CSRF y que el listado ofrezca un formulario POST.
+# ============================================
+class AuditoriaDerivacionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        grupo_coordinador, _ = Group.objects.get_or_create(name="Coordinador")
+        grupo_estudiante, _ = Group.objects.get_or_create(name="Estudiante")
+
+        cls.coordinador = User.objects.create_user("coord_auditoria")
+        cls.coordinador.groups.add(grupo_coordinador)
+        cls.estudiante = User.objects.create_user("est_auditoria")
+        cls.estudiante.groups.add(grupo_estudiante)
+        cls.estudiante_inactivo = User.objects.create_user(
+            "est_inactivo", is_active=False
+        )
+        cls.estudiante_inactivo.groups.add(grupo_estudiante)
+        cls.sin_rol = User.objects.create_user("sinrol_auditoria")
+
+        especialidad = Especialidad.objects.create(
+            nombre="Especialidad de Prueba (auditoría)"
+        )
+        cls.solicitud = Solicitud.objects.create(
+            nombre_completo="Paciente Auditado Uno",
+            rut="55555555-5",
+            fecha_nacimiento=date(1990, 1, 1),
+            telefono="+56912345678",
+            motivo_consulta="Dolor",
+            especialidad=especialidad,
+        )
+        cls.url = reverse("coordinacion:derivar_solicitud", args=[cls.solicitud.pk])
+
+    def _derivar(self, usuario, estudiante, cliente=None):
+        cliente = cliente or self.client
+        cliente.force_login(usuario)
+        return cliente.post(
+            self.url, {"estudiante_asignado": str(estudiante.pk)}, secure=True
+        )
+
+    # ---------- Bitácora ----------
+
+    def test_derivacion_exitosa_deja_un_registro_en_la_bitacora(self):
+        self._derivar(self.coordinador, self.estudiante)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 1)
+        registro = BitacoraAuditoria.objects.get()
+        self.assertEqual(registro.usuario, self.coordinador)
+        self.assertEqual(registro.accion, "Derivación de solicitud")
+        self.assertIn(f"#{self.solicitud.pk}", registro.detalles)
+        self.assertIn(self.estudiante.username, registro.detalles)
+        self.assertIsNotNone(registro.fecha_hora)
+
+    def test_la_bitacora_no_guarda_datos_del_paciente(self):
+        self._derivar(self.coordinador, self.estudiante)
+        detalles = BitacoraAuditoria.objects.get().detalles
+        self.assertNotIn("Paciente Auditado Uno", detalles)
+        self.assertNotIn("55555555", detalles)
+
+    def test_derivacion_rechazada_no_deja_registro(self):
+        self._derivar(self.coordinador, self.sin_rol)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 0)
+
+    def test_estudiante_inactivo_no_puede_recibir_derivaciones(self):
+        self._derivar(self.coordinador, self.estudiante_inactivo)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 0)
+
+    def test_no_se_puede_derivar_dos_veces(self):
+        self._derivar(self.coordinador, self.estudiante)
+        otro = User.objects.create_user("otro_est")
+        otro.groups.add(Group.objects.get(name="Estudiante"))
+        self._derivar(self.coordinador, otro)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estudiante_asignado, self.estudiante)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 1)
+
+    def test_solicitud_inexistente_devuelve_404(self):
+        self.client.force_login(self.coordinador)
+        url = reverse("coordinacion:derivar_solicitud", args=[999999])
+        respuesta = self.client.post(
+            url, {"estudiante_asignado": str(self.estudiante.pk)}, secure=True
+        )
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 0)
+
+    # ---------- RBAC y CSRF de la acción ----------
+
+    def test_anonimo_es_redirigido_al_login_y_no_deriva(self):
+        respuesta = self.client.post(
+            self.url, {"estudiante_asignado": str(self.estudiante.pk)}, secure=True
+        )
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertTrue(respuesta.url.startswith("/login/"))
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+
+    def test_estudiante_recibe_403_y_no_deriva(self):
+        respuesta = self._derivar(self.estudiante, self.estudiante)
+        self.assertEqual(respuesta.status_code, 403)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 0)
+
+    def test_post_sin_token_csrf_es_rechazado(self):
+        cliente = Client(enforce_csrf_checks=True)
+        respuesta = self._derivar(self.coordinador, self.estudiante, cliente)
+        self.assertEqual(respuesta.status_code, 403)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+
+    # ---------- Listado ----------
+
+    def test_listado_ofrece_formulario_post_con_estudiantes_activos(self):
+        self.client.force_login(self.coordinador)
+        respuesta = self.client.get(
+            reverse("coordinacion:listado_solicitudes"), secure=True
+        )
+        self.assertContains(respuesta, f'action="{self.url}"')
+        self.assertContains(respuesta, "csrfmiddlewaretoken")
+        self.assertContains(respuesta, "est_auditoria")
+        self.assertNotContains(respuesta, "est_inactivo")
+        # El botón ya no es un enlace GET.
+        self.assertNotContains(respuesta, f'href="{self.url}"')
+
+    def test_listado_muestra_quien_derivo_y_cuando(self):
+        self._derivar(self.coordinador, self.estudiante)
+        respuesta = self.client.get(
+            reverse("coordinacion:listado_solicitudes"), secure=True
+        )
+        self.assertContains(respuesta, "coord_auditoria")
+        self.assertContains(respuesta, "Derivada por")
