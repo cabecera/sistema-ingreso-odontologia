@@ -16,4 +16,12 @@ app_name = "administracion"
 
 urlpatterns = [
     path("", views.panel_administracion, name="panel"),
+    # Task 59: gestión de usuarios
+    path("usuarios/", views.lista_usuarios, name="usuarios"),
+    path("usuarios/nuevo/", views.usuario_nuevo, name="usuario_nuevo"),
+    path(
+        "usuarios/<int:pk>/estado/",
+        views.usuario_cambiar_estado,
+        name="usuario_cambiar_estado",
+    ),
 ]
