@@ -23,5 +23,10 @@
 
     <button type="submit" class="btn btn-primary">Ingresar</button>
   </form>
+
+  <p class="small text-secondary mt-4">
+    ¿Eres paciente y aún no tienes cuenta?
+    <a href="{% url 'pacientes:registro' %}">Regístrate aquí</a>.
+  </p>
 </div>
 {% endblock %}
