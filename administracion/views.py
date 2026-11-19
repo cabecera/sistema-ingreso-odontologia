@@ -12,7 +12,6 @@ from administracion.models import Especialidad
 
 from .forms import EspecialidadForm, UsuarioNuevoForm
 
-#Arreglar
 @role_required('Super Administrador')
 def panel_administracion(request):
     """
