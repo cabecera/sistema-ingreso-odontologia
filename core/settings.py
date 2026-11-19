@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import environ
 
+from seguridad.claves import CLAVE_CIFRADO_DE_PRUEBA, CLAVE_SECRETA_DE_PRUEBA, validar_claves
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,7 +41,7 @@ environ.Env.read_env(BASE_DIR / '.env')
 # Activar despues
 # SECRET_KEY = env('SECRET_KEY')
 
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-ci-only-key-para-pruebas')
+SECRET_KEY = env('SECRET_KEY', default=CLAVE_SECRETA_DE_PRUEBA)
 
 
 DEBUG = env.bool('DEBUG', default=False)
@@ -215,16 +217,21 @@ STORAGES = {
 # Task 31: Proteger datos sensibles del formulario
 # Issue padre: REQ-08 (Cifrado de datos sensibles)
 # --------------------------------------------
-# Llave de cifrado Fernet. Se lee desde el .env
-# (nunca hardcodeada). Si falta, la app falla al
-# arrancar: mejor fallar fuerte que cifrar mal.
+# Llave de cifrado Fernet. Se lee desde el entorno
+# (.env local / Variables de Render). El valor por
+# defecto es público y solo sirve para CI y pruebas:
+# en producción la app se niega a arrancar si se usa
+# (Task 58, ver seguridad/claves.py).
 # ============================================
 
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default=CLAVE_CIFRADO_DE_PRUEBA)
 
-# Arreglar despues
-# FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY')
-
-FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='Xq7v9B2wR1sE4dF5gH6jK7lM8nO9pQ0rS1tU2vW3xY4=')
+validar_claves(
+    debug=DEBUG,
+    usa_sqlite=env.bool('USE_SQLITE', default=False),
+    secret_key=SECRET_KEY,
+    clave_cifrado=FIELD_ENCRYPTION_KEY,
+)
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
