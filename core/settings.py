@@ -273,3 +273,14 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+
+# ============================================
+# AB#82: Correos del sistema (aviso de registro de pacientes)
+# Render Free bloquea los puertos SMTP, así que por defecto el correo se
+# imprime en el log (backend "console"). Si algún día hay un servicio SMTP
+# gratuito, se cambia solo con la variable de entorno EMAIL_BACKEND.
+# Nunca se envían contraseñas por correo.
+# ============================================
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='no-responder@odontologia.local')
