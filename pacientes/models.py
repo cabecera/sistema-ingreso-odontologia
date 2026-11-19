@@ -44,11 +44,22 @@ class Solicitud(models.Model):
     """
 
     class Estado(models.TextChoices):
-        # Solo dos estados por ahora: la solicitud llega como
-        # PENDIENTE y pasa a DERIVADA cuando el Coordinador la
-        # asigna a un estudiante (tarea de derivación, REQ-05).
+        # Ciclo de vida (REQ-18): PENDIENTE -> DERIVADA (el Coordinador
+        # asigna estudiante y horario) -> REALIZADO (el estudiante atendió
+        # al paciente) -> TERMINADO (ficha y reporte completos).
         PENDIENTE = "PENDIENTE", "Pendiente"
         DERIVADA = "DERIVADA", "Derivada"
+        REALIZADO = "REALIZADO", "Realizado"
+        TERMINADO = "TERMINADO", "Terminado"
+
+    # Transiciones permitidas: no se pueden saltar etapas ni volver atrás.
+    # Se valida en el servidor (nunca confiar en lo que mande el navegador).
+    TRANSICIONES = {
+        "PENDIENTE": {"DERIVADA"},
+        "DERIVADA": {"REALIZADO"},
+        "REALIZADO": {"TERMINADO"},
+        "TERMINADO": set(),
+    }
 
     # --- Datos personales del paciente ---
     nombre_completo = models.CharField("nombre completo", max_length=150)
@@ -136,6 +147,13 @@ class Solicitud(models.Model):
         blank=True,
     )
 
+    # Horario de la atención, definido por el Coordinador al derivar (REQ-18).
+    fecha_atencion = models.DateTimeField(
+        "fecha y hora de atención",
+        null=True,
+        blank=True,
+    )
+
     # --- Campos de gestión, para el panel del Coordinador (REQ-04) ---
     estado = models.CharField(
         "estado",
@@ -157,6 +175,10 @@ class Solicitud(models.Model):
             # Acelera el filtro por especialidad + estado (REQ-04).
             models.Index(fields=["especialidad", "estado"]),
         ]
+
+    def puede_pasar_a(self, nuevo_estado):
+        """True si el cambio de estado respeta el ciclo de vida."""
+        return nuevo_estado in self.TRANSICIONES.get(self.estado, set())
 
     def __str__(self):
         # A propósito NO incluye nombre ni RUT: este texto aparece en

@@ -6,6 +6,12 @@
   <a class="btn btn-outline-primary btn-sm" href="{% url 'estudiantes:panel' %}">Volver al panel</a>
 </div>
 
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}" role="status">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
 {% if solicitudes %}
   <div class="table-responsive">
     <table class="table table-striped table-hover align-middle bg-white">
@@ -16,6 +22,9 @@
           <th scope="col">Nombre</th>
           <th scope="col">Especialidad</th>
           <th scope="col">Fecha de solicitud</th>
+          <th scope="col">Horario de atención</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acción</th>
         </tr>
       </thead>
       <tbody>
@@ -25,6 +34,18 @@
             <td>{{ solicitud.nombre_completo }}</td>
             <td>{{ solicitud.especialidad.nombre }}</td>
             <td>{{ solicitud.fecha_creacion|date:"d/m/Y" }}</td>
+            <td>{{ solicitud.fecha_atencion|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td><span class="badge text-bg-{% if solicitud.estado == 'TERMINADO' %}success{% elif solicitud.estado == 'REALIZADO' %}info{% else %}warning{% endif %}">{{ solicitud.get_estado_display }}</span></td>
+            <td>
+              {% if solicitud.estado == 'DERIVADA' %}
+                <form method="post" action="{% url 'estudiantes:marcar_realizada' solicitud.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-primary">Marcar como realizada</button>
+                </form>
+              {% else %}
+                <span class="text-secondary small">—</span>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
       </tbody>

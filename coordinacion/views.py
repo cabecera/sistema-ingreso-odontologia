@@ -62,6 +62,32 @@ def _rango_del_dia(fecha):
     return inicio, fin
 
 
+# Horario de atención (REQ-18): debe ser futuro y dentro de un año.
+MAX_DIAS_ATENCION = 365
+
+
+def _leer_fecha_atencion(texto):
+    """
+    Convierte el valor de un <input type="datetime-local"> en una fecha
+    con zona horaria. Devuelve None si no es válida, ya pasó o está
+    demasiado lejos. El navegador no es de fiar: se valida acá.
+    """
+    try:
+        naive = datetime.fromisoformat((texto or "").strip())
+    except (ValueError, OverflowError):
+        return None
+    if naive.tzinfo is not None:
+        return None
+    try:
+        fecha = timezone.make_aware(naive)
+    except (ValueError, OverflowError):
+        return None
+    ahora = timezone.now()
+    if fecha <= ahora or fecha > ahora + timedelta(days=MAX_DIAS_ATENCION):
+        return None
+    return fecha
+
+
 @role_required('Super Administrador', 'Coordinador')
 def listado_solicitudes(request):
     """
@@ -109,6 +135,10 @@ def listado_solicitudes(request):
         estado=Solicitud.Estado.PENDIENTE
     ).order_by("fecha_creacion", "pk")
     derivadas = solicitudes.filter(estado=Solicitud.Estado.DERIVADA)
+    # REALIZADO y TERMINADO también deben verse: si no, desaparecerían.
+    atendidas = solicitudes.filter(
+        estado__in=[Solicitud.Estado.REALIZADO, Solicitud.Estado.TERMINADO]
+    )
 
     return render(
         request,
@@ -116,6 +146,9 @@ def listado_solicitudes(request):
         {
             "pendientes": pendientes,
             "derivadas": derivadas,
+            "atendidas": atendidas,
+            # Valor mínimo del selector de horario (hora local, sin segundos).
+            "min_atencion": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
             "especialidades": especialidades,
             # Candidatos del selector "Derivar a": solo cuentas activas con
             # rol Estudiante (la vista de derivación vuelve a validarlo).
@@ -170,17 +203,26 @@ def derivar_solicitud(request, pk):
         messages.error(request, "Selecciona un usuario con rol de estudiante.")
         return redirect("coordinacion:listado_solicitudes")
 
+    fecha_atencion = _leer_fecha_atencion(request.POST.get("fecha_atencion"))
+    if fecha_atencion is None:
+        messages.error(
+            request,
+            "Indica una fecha y hora de atención futura (máximo un año).",
+        )
+        return redirect("coordinacion:listado_solicitudes")
+
     with transaction.atomic():
         solicitud = get_object_or_404(Solicitud.objects.select_for_update(), pk=pk)
 
-        if solicitud.estado == Solicitud.Estado.DERIVADA:
-            messages.warning(request, "Esta solicitud ya se encuentra derivada.")
+        if not solicitud.puede_pasar_a(Solicitud.Estado.DERIVADA):
+            messages.warning(request, "Esta solicitud ya fue derivada.")
             return redirect("coordinacion:listado_solicitudes")
 
         solicitud.estudiante_asignado = estudiante
         solicitud.estado = Solicitud.Estado.DERIVADA
         solicitud.derivado_por = request.user
         solicitud.fecha_derivacion = timezone.now()
+        solicitud.fecha_atencion = fecha_atencion
         solicitud.save()
 
         BitacoraAuditoria.objects.create(
@@ -188,7 +230,8 @@ def derivar_solicitud(request, pk):
             accion="Derivación de solicitud",
             detalles=(
                 f"Solicitud #{solicitud.pk} derivada al estudiante "
-                f"'{estudiante.get_username()}' (id {estudiante.pk})."
+                f"'{estudiante.get_username()}' (id {estudiante.pk}), atención el "
+                f"{timezone.localtime(fecha_atencion):%d-%m-%Y %H:%M}."
             ),
         )
 

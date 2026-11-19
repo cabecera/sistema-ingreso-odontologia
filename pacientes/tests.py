@@ -113,3 +113,31 @@ class DetallePacienteTests(TestCase):
         self.client.login(username="alumno_asignado", password="password123")
         response = self.client.get(self.url, secure=True)
         self.assertNotContains(response, "ANTECEDENTE-SENSIBLE-XYZ")
+
+
+# ============================================
+# Task 86 / REQ-18: ciclo de vida de la solicitud
+# ============================================
+class CicloDeVidaTests(TestCase):
+    def test_solo_se_permiten_las_transiciones_del_ciclo(self):
+        from pacientes.models import Solicitud
+
+        E = Solicitud.Estado
+        permitidas = {
+            (E.PENDIENTE, E.DERIVADA),
+            (E.DERIVADA, E.REALIZADO),
+            (E.REALIZADO, E.TERMINADO),
+        }
+        for origen in E:
+            for destino in E:
+                with self.subTest(origen=origen, destino=destino):
+                    solicitud = Solicitud(estado=origen)
+                    self.assertEqual(
+                        solicitud.puede_pasar_a(destino),
+                        (origen, destino) in permitidas,
+                    )
+
+    def test_el_estado_desconocido_no_puede_avanzar(self):
+        from pacientes.models import Solicitud
+
+        self.assertFalse(Solicitud(estado="XYZ").puede_pasar_a("DERIVADA"))

@@ -27,6 +27,9 @@
           <dt class="col-sm-4">Fecha de ingreso</dt>
           <dd class="col-sm-8">{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</dd>
 
+          <dt class="col-sm-4">Horario de atención</dt>
+          <dd class="col-sm-8">{{ solicitud.fecha_atencion|date:"d-m-Y H:i"|default:"Sin definir" }}</dd>
+
           <dt class="col-sm-4">Motivo de consulta</dt>
           <dd class="col-sm-8">{{ solicitud.motivo_consulta|linebreaksbr }}</dd>
 

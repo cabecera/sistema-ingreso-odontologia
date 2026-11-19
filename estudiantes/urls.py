@@ -12,4 +12,6 @@ urlpatterns = [
     path("", views.panel_estudiantes, name="panel"),
     ##TASK 50: Crear la página "mis pacientes" del estudiante
     path("mis-pacientes/", views.mis_pacientes, name="mis_pacientes"),
+    # Task 86: el estudiante marca la atención como realizada
+    path("pacientes/<int:pk>/realizada/", views.marcar_realizada, name="marcar_realizada"),
 ]

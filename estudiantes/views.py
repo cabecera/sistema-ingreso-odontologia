@@ -1,7 +1,11 @@
-from django.shortcuts import render
+from django.contrib import messages
+from django.db import transaction
+from django.http import HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from pacientes.models import Solicitud
 from seguridad.decorators import role_required
+from seguridad.models import BitacoraAuditoria
 
 
 @role_required('Super Administrador', 'Coordinador', 'Estudiante')
@@ -33,3 +37,38 @@ def mis_pacientes(request):
         'estudiantes/mis_pacientes.html',
         {'solicitudes': solicitudes},
     )
+
+
+# ============================================
+# Task 86 / REQ-18: el estudiante marca la atención como realizada
+# --------------------------------------------
+# Solo POST. get_object_or_404 filtra por request.user: marcar el
+# paciente de otro estudiante da 404 (anti-IDOR, igual que "mis
+# pacientes"). La transición se valida contra el ciclo de vida del
+# modelo y deja registro en la bitácora.
+# ============================================
+@role_required('Estudiante')
+def marcar_realizada(request, pk):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    with transaction.atomic():
+        solicitud = get_object_or_404(
+            Solicitud.objects.select_for_update(),
+            pk=pk,
+            estudiante_asignado=request.user,
+        )
+        if not solicitud.puede_pasar_a(Solicitud.Estado.REALIZADO):
+            messages.error(request, "Esta atención no se puede marcar como realizada.")
+            return redirect('estudiantes:mis_pacientes')
+
+        solicitud.estado = Solicitud.Estado.REALIZADO
+        solicitud.save(update_fields=['estado'])
+        BitacoraAuditoria.objects.create(
+            usuario=request.user,
+            accion="Atención realizada",
+            detalles=f"Solicitud #{solicitud.pk} marcada como REALIZADO.",
+        )
+
+    messages.success(request, "Atención marcada como realizada.")
+    return redirect('estudiantes:mis_pacientes')
