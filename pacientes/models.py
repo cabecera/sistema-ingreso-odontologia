@@ -263,3 +263,49 @@ class PerfilPaciente(models.Model):
     def save(self, *args, **kwargs):
         self.rut = formatear_rut(self.rut)
         super().save(*args, **kwargs)
+
+
+# ============================================
+# AB#87 (REQ-18): Ficha clínica y reporte del estudiante
+# --------------------------------------------
+# Una ficha por solicitud. La completa el estudiante asignado cuando la
+# atención ya fue REALIZADA: registra el examen previo, decide qué
+# especialidad necesita el paciente y escribe el reporte. Al guardarla,
+# la solicitud pasa a TERMINADO. Todo el contenido clínico va cifrado
+# (REQ-08) y la ficha no se edita después (es un registro clínico).
+# ============================================
+class FichaClinica(models.Model):
+    solicitud = models.OneToOneField(
+        Solicitud,
+        on_delete=models.PROTECT,
+        related_name="ficha",
+    )
+    estudiante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fichas_realizadas",
+        verbose_name="estudiante",
+    )
+    # El examen previo se registra ANTES de decidir la especialidad.
+    examen_previo = EncryptedTextField("examen previo")
+    observaciones = EncryptedTextField("observaciones de la ficha", blank=True)
+    # Decisión del estudiante: qué necesita el paciente.
+    especialidad_requerida = models.ForeignKey(
+        "administracion.Especialidad",
+        on_delete=models.PROTECT,
+        related_name="fichas_indicadas",
+        verbose_name="especialidad que necesita el paciente",
+    )
+    reporte = EncryptedTextField("reporte del estudiante")
+    fecha_creacion = models.DateTimeField("fecha de creación", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "ficha clínica"
+        verbose_name_plural = "fichas clínicas"
+        ordering = ["-fecha_creacion"]
+
+    def __str__(self):
+        # Sin contenido clínico ni datos del paciente.
+        return f"Ficha clínica de la solicitud #{self.solicitud_id}"

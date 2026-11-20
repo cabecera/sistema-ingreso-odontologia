@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Ficha clínica{% endblock %}
+
+{% block content %}
+<div class="page-narrow">
+  <h1 class="h2 mb-1">Ficha clínica</h1>
+  <p class="text-secondary mb-4">
+    Solicitud #{{ solicitud.pk }} &middot; {{ solicitud.nombre_completo }} &middot;
+    {{ solicitud.especialidad.nombre }}
+  </p>
+
+  <div class="alert alert-info" role="note">
+    Registra primero el examen previo y después decide qué especialidad necesita el paciente.
+    Al guardar, la atención queda <strong>terminada</strong> y la ficha no se puede modificar.
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+          {{ field.label }}{% if field.field.required %} *{% endif %}
+        </label>
+        {{ field }}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Guardar y terminar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'estudiantes:mis_pacientes' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

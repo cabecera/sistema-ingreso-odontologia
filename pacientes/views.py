@@ -81,7 +81,7 @@ def nueva_solicitud(request):
 def mis_solicitudes(request):
     solicitudes = (
         Solicitud.objects.filter(paciente=request.user)
-        .select_related("especialidad")
+        .select_related("especialidad", "ficha__especialidad_requerida")
         .order_by("-fecha_creacion")
     )
     return render(request, "pacientes/mis_solicitudes.html", {"solicitudes": solicitudes})

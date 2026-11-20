@@ -148,6 +148,7 @@
             <th scope="col">Estado</th>
             <th scope="col">Estudiante</th>
             <th scope="col">Horario de atención</th>
+            <th scope="col">Reporte</th>
           </tr>
         </thead>
         <tbody>
@@ -159,6 +160,7 @@
             <td><span class="badge text-bg-{% if solicitud.estado == 'TERMINADO' %}success{% else %}info{% endif %}">{{ solicitud.get_estado_display }}</span></td>
             <td>{{ solicitud.estudiante_asignado|default:"—" }}</td>
             <td>{{ solicitud.fecha_atencion|date:"d-m-Y H:i"|default:"—" }}</td>
+            <td>{% if solicitud.estado == 'TERMINADO' %}<a href="{% url 'coordinacion:reporte_solicitud' solicitud.pk %}">Ver reporte</a>{% else %}<span class="text-secondary">—</span>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>

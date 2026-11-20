@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Reporte de la atención{% endblock %}
+
+{% block content %}
+<div class="page-narrow">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h2 mb-0">Reporte de la atención</h1>
+    <a class="btn btn-outline-primary btn-sm" href="{{ volver_url }}">Volver</a>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}" role="status">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body p-4">
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Paciente</dt>
+        <dd class="col-sm-8">{{ solicitud.nombre_completo }}</dd>
+        <dt class="col-sm-4">RUT</dt>
+        <dd class="col-sm-8">{{ solicitud.rut }}</dd>
+        <dt class="col-sm-4">Solicitud</dt>
+        <dd class="col-sm-8">#{{ solicitud.pk }} &middot; {{ solicitud.especialidad.nombre }}</dd>
+        <dt class="col-sm-4">Atención</dt>
+        <dd class="col-sm-8">{{ solicitud.fecha_atencion|date:"d/m/Y H:i"|default:"—" }}</dd>
+        <dt class="col-sm-4">Estudiante</dt>
+        <dd class="col-sm-8">{{ ficha.estudiante.get_username|default:"—" }}</dd>
+        <dt class="col-sm-4">Ficha completada</dt>
+        <dd class="col-sm-8">{{ ficha.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body p-4">
+      <h2 class="h5">Examen previo</h2>
+      <p class="mb-4" style="white-space: pre-line">{{ ficha.examen_previo }}</p>
+      {% if ficha.observaciones %}
+        <h2 class="h5">Observaciones</h2>
+        <p class="mb-4" style="white-space: pre-line">{{ ficha.observaciones }}</p>
+      {% endif %}
+      <h2 class="h5">Especialidad que necesita el paciente</h2>
+      <p class="mb-4">{{ ficha.especialidad_requerida.nombre }}</p>
+      <h2 class="h5">Reporte</h2>
+      <p class="mb-0" style="white-space: pre-line">{{ ficha.reporte }}</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
