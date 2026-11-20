@@ -193,3 +193,61 @@ class Solicitud(models.Model):
         # (con puntos, sin puntos, con o sin guion).
         self.rut = formatear_rut(self.rut)
         super().save(*args, **kwargs)
+
+
+# ============================================
+# AB#82 (REQ-17): Registro de pacientes con cuenta
+# --------------------------------------------
+# Datos del paciente que se registra. El User de Django guarda solo
+# lo necesario para iniciar sesión (correo como usuario + contraseña
+# con hash) y queda INACTIVO hasta que el Coordinador acepte el registro
+# (AB#84). RUT es dato sensible: va cifrado (REQ-08).
+# ============================================
+class PerfilPaciente(models.Model):
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "PENDIENTE", "Pendiente de revisión"
+        ACEPTADO = "ACEPTADO", "Aceptado"
+        RECHAZADO = "RECHAZADO", "Rechazado"
+
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="perfil_paciente",
+    )
+    nombre_completo = models.CharField("nombre completo", max_length=150)
+    fecha_nacimiento = models.DateField(
+        "fecha de nacimiento", validators=[validar_fecha_nacimiento]
+    )
+    # Cifrado: no se puede filtrar ni exigir unicidad (igual que en Solicitud).
+    rut = EncryptedCharField("RUT", max_length=100, validators=[validar_rut])
+    telefono = models.CharField("teléfono", max_length=20)
+
+    estado = models.CharField(
+        "estado", max_length=10, choices=Estado.choices, default=Estado.PENDIENTE
+    )
+    fecha_registro = models.DateTimeField("fecha de registro", auto_now_add=True)
+
+    # Los completa el Coordinador al revisar (AB#84).
+    revisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="registros_revisados",
+    )
+    fecha_revision = models.DateTimeField("fecha de revisión", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "perfil de paciente"
+        verbose_name_plural = "perfiles de pacientes"
+        ordering = ["-fecha_registro"]
+        indexes = [models.Index(fields=["estado", "fecha_registro"])]
+
+    def __str__(self):
+        # Sin nombre ni RUT: este texto puede aparecer en logs y en el admin.
+        return f"Perfil de paciente #{self.pk} ({self.estado})"
+
+    def save(self, *args, **kwargs):
+        self.rut = formatear_rut(self.rut)
+        super().save(*args, **kwargs)

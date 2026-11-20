@@ -13,11 +13,13 @@ import unicodedata
 from datetime import date
 
 from django import forms
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from django.core.validators import MaxLengthValidator
 
 from administracion.models import Especialidad
 
-from .models import Solicitud
+from .models import PerfilPaciente, Solicitud
 
 # ============================================
 # Task 55: Reforzar las validaciones de todos los formularios
@@ -52,6 +54,34 @@ LIMITES_TEXTO = {
     "antecedentes_personales": 1000,
     "antecedentes_familiares": 1000,
 }
+
+
+def normalizar_nombre(valor):
+    """Normaliza espacios y exige solo letras y signos propios de un nombre."""
+    nombre = " ".join(valor.split())
+    if len(nombre) < NOMBRE_LARGO_MINIMO:
+        raise forms.ValidationError(
+            f"El nombre debe tener al menos {NOMBRE_LARGO_MINIMO} caracteres."
+        )
+    if not all(ch.isalpha() or ch in CARACTERES_NOMBRE_PERMITIDOS for ch in nombre):
+        raise forms.ValidationError(
+            "El nombre solo puede tener letras, espacios, guion, apóstrofe y punto."
+        )
+    if sum(ch.isalpha() for ch in nombre) < 2:
+        raise forms.ValidationError("Ingresa un nombre válido.")
+    return nombre
+
+
+def normalizar_telefono(valor):
+    """Acepta "+56 9 1234 5678" o "(2) 2345-6789"; rechaza letras y símbolos."""
+    telefono = valor.strip()
+    if not re.fullmatch(r"\+?[0-9 ()-]+", telefono):
+        raise forms.ValidationError(
+            "Usa solo números, espacios, guiones, paréntesis y un + inicial."
+        )
+    if not 8 <= len(re.sub(r"\D", "", telefono)) <= 15:
+        raise forms.ValidationError("El teléfono debe tener entre 8 y 15 dígitos.")
+    return telefono
 
 
 class SolicitudForm(forms.ModelForm):
@@ -110,20 +140,7 @@ class SolicitudForm(forms.ModelForm):
             campo.widget.attrs["class"] = "form-select" if es_lista else "form-control"
 
     def clean_nombre_completo(self):
-        # Normaliza espacios ("Juan    Pérez" -> "Juan Pérez") y exige
-        # que sean solo letras y unos pocos signos propios de un nombre.
-        nombre = " ".join(self.cleaned_data["nombre_completo"].split())
-        if len(nombre) < NOMBRE_LARGO_MINIMO:
-            raise forms.ValidationError(
-                f"El nombre debe tener al menos {NOMBRE_LARGO_MINIMO} caracteres."
-            )
-        if not all(ch.isalpha() or ch in CARACTERES_NOMBRE_PERMITIDOS for ch in nombre):
-            raise forms.ValidationError(
-                "El nombre solo puede tener letras, espacios, guion, apóstrofe y punto."
-            )
-        if sum(ch.isalpha() for ch in nombre) < 2:
-            raise forms.ValidationError("Ingresa un nombre válido.")
-        return nombre
+        return normalizar_nombre(self.cleaned_data["nombre_completo"])
 
     def clean_motivo_consulta(self):
         motivo = limpiar_texto(self.cleaned_data["motivo_consulta"])
@@ -142,13 +159,73 @@ class SolicitudForm(forms.ModelForm):
         return cleaned
 
     def clean_telefono(self):
-        # Acepta formatos como "+56 9 1234 5678" o "(2) 2345-6789",
-        # pero rechaza letras y símbolos raros.
-        telefono = self.cleaned_data["telefono"].strip()
-        if not re.fullmatch(r"\+?[0-9 ()-]+", telefono):
-            raise forms.ValidationError(
-                "Usa solo números, espacios, guiones, paréntesis y un + inicial."
-            )
-        if not 8 <= len(re.sub(r"\D", "", telefono)) <= 15:
-            raise forms.ValidationError("El teléfono debe tener entre 8 y 15 dígitos.")
-        return telefono
+        return normalizar_telefono(self.cleaned_data["telefono"])
+
+
+# ============================================
+# AB#82 (REQ-17): Formulario de registro del paciente
+# ============================================
+class RegistroPacienteForm(forms.ModelForm):
+    correo = forms.EmailField(label="Correo electrónico", max_length=150)
+    password1 = forms.CharField(
+        label="Contraseña",
+        strip=False,
+        max_length=128,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+    password2 = forms.CharField(
+        label="Repite la contraseña",
+        strip=False,
+        max_length=128,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+
+    class Meta:
+        model = PerfilPaciente
+        fields = ["nombre_completo", "fecha_nacimiento", "rut", "telefono"]
+        widgets = {
+            "fecha_nacimiento": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "rut": forms.TextInput(attrs={"placeholder": "12.345.678-5"}),
+            "telefono": forms.TextInput(attrs={"type": "tel", "placeholder": "+56 9 1234 5678"}),
+        }
+
+    field_order = [
+        "nombre_completo", "correo", "fecha_nacimiento", "rut", "telefono",
+        "password1", "password2",
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fecha_nacimiento"].widget.attrs["max"] = date.today().isoformat()
+        for campo in self.fields.values():
+            campo.widget.attrs["class"] = "form-control"
+
+    def clean_nombre_completo(self):
+        return normalizar_nombre(self.cleaned_data["nombre_completo"])
+
+    def clean_telefono(self):
+        return normalizar_telefono(self.cleaned_data["telefono"])
+
+    def clean_correo(self):
+        # El correo se usa como nombre de usuario: siempre en minúsculas.
+        return self.cleaned_data["correo"].strip().lower()
+
+    def clean(self):
+        cleaned = super().clean()
+        p1, p2 = cleaned.get("password1"), cleaned.get("password2")
+        if p1 and p2:
+            if p1 != p2:
+                self.add_error("password2", "Las contraseñas no coinciden.")
+            else:
+                # Mismos validadores de AUTH_PASSWORD_VALIDATORS (largo,
+                # contraseñas comunes, solo números, parecido al correo/nombre).
+                candidato = User(
+                    username=cleaned.get("correo", ""),
+                    email=cleaned.get("correo", ""),
+                    first_name=cleaned.get("nombre_completo", ""),
+                )
+                try:
+                    validate_password(p1, user=candidato)
+                except forms.ValidationError as error:
+                    self.add_error("password1", error)
+        return cleaned
