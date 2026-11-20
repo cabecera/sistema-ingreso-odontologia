@@ -2,11 +2,17 @@
 {% block title %}Panel de coordinación{% endblock %}
 {% block content %}
 <div class="page-narrow">
-  <h1>Panel de coordinación</h1>
-  <p class="text-secondary">
-    Página de prueba (Task 44) para verificar que Coordinadores y el Super
-    Administrador pueden entrar aquí. El listado real de solicitudes se
-    construye en sprints futuros (REQ-04, REQ-05).
-  </p>
+  <h1 class="mb-4">Panel de coordinación</h1>
+  <div class="list-group">
+    <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:listado_solicitudes' %}">
+      <strong>Solicitudes de atención</strong>
+      <div class="small text-secondary">Revisar, filtrar y derivar solicitudes a estudiantes.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:lista_registros' %}">
+      <strong>Registros de pacientes</strong>
+      {% if registros_pendientes %}<span class="badge text-bg-warning ms-2">{{ registros_pendientes }} pendiente{{ registros_pendientes|pluralize }}</span>{% endif %}
+      <div class="small text-secondary">Aceptar o rechazar los registros de nuevos pacientes.</div>
+    </a>
+  </div>
 </div>
 {% endblock %}

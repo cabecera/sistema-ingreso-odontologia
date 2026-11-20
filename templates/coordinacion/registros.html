@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Registros de pacientes{% endblock %}
+
+{% block content %}
+  <h1 class="mb-2">Registros de pacientes</h1>
+  <p class="text-secondary mb-3">
+    Al aceptar un registro la cuenta queda activa y el paciente puede iniciar sesión.
+    Al rechazarlo, la cuenta sigue inactiva. Se avisa al paciente por correo.
+  </p>
+
+  <ul class="nav nav-pills mb-3" aria-label="Filtro por estado">
+    {% for valor, nombre in estados %}
+      <li class="nav-item">
+        <a class="nav-link {% if estado_filtro == valor %}active{% endif %}"
+           href="?estado={{ valor }}">{{ nombre }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle bg-white border">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Correo</th>
+          <th>RUT</th>
+          <th>Teléfono</th>
+          <th>Nacimiento</th>
+          <th>Registrado</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in perfiles %}
+          <tr>
+            <td>{{ p.nombre_completo }}</td>
+            <td>{{ p.usuario.email }}</td>
+            <td>{{ p.rut }}</td>
+            <td>{{ p.telefono }}</td>
+            <td>{{ p.fecha_nacimiento|date:"d/m/Y" }}</td>
+            <td>{{ p.fecha_registro|date:"d/m/Y H:i" }}</td>
+            <td>
+              {{ p.get_estado_display }}
+              {% if p.revisado_por %}
+                <div class="small text-secondary">por {{ p.revisado_por.get_username }}, {{ p.fecha_revision|date:"d/m/Y H:i" }}</div>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              {% if p.estado == Estado.PENDIENTE %}
+                <form method="post" action="{% url 'coordinacion:aceptar_registro' p.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-primary">Aceptar</button>
+                </form>
+                <form method="post" action="{% url 'coordinacion:rechazar_registro' p.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Rechazar</button>
+                </form>
+              {% else %}
+                <span class="text-secondary small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-center text-secondary py-4">No hay registros en este estado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

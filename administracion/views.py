@@ -9,6 +9,7 @@ from seguridad.decorators import role_required
 from seguridad.models import BitacoraAuditoria
 
 from administracion.models import Especialidad
+from pacientes.models import PerfilPaciente
 
 from .forms import EspecialidadForm, UsuarioNuevoForm
 
@@ -72,6 +73,20 @@ def usuario_cambiar_estado(request, pk):
         return redirect('administracion:usuarios')
     if usuario.is_superuser:
         messages.error(request, "Una cuenta de superusuario no se gestiona desde aquí.")
+        return redirect('administracion:usuarios')
+
+    # Un paciente solo se activa cuando el Coordinador acepta su registro
+    # (AB#84): así is_active y PerfilPaciente.estado no quedan desalineados.
+    perfil = getattr(usuario, 'perfil_paciente', None)
+    if (
+        perfil is not None
+        and not usuario.is_active
+        and perfil.estado != PerfilPaciente.Estado.ACEPTADO
+    ):
+        messages.error(
+            request,
+            "Las cuentas de pacientes se activan desde la revisión de registros del Coordinador.",
+        )
         return redirect('administracion:usuarios')
 
     with transaction.atomic():
