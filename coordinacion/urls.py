@@ -14,5 +14,9 @@ urlpatterns = [
     # Tasks 47/49: Listado de solicitudes (REQ-04)
     # ============================================
     path('listado/', views.listado_solicitudes, name='listado_solicitudes'),
+    # AB#84: revisión de registros de pacientes (REQ-17)
+    path('registros/', views.lista_registros, name='lista_registros'),
+    path('registros/<int:pk>/aceptar/', views.aceptar_registro, name='aceptar_registro'),
+    path('registros/<int:pk>/rechazar/', views.rechazar_registro, name='rechazar_registro'),
     path('derivar/<int:pk>/', views.derivar_solicitud, name='derivar_solicitud'),
 ]

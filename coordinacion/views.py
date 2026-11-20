@@ -8,8 +8,15 @@ from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+import logging
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+
 from administracion.models import Especialidad
-from pacientes.models import Solicitud
+from pacientes.models import PerfilPaciente, Solicitud
 from seguridad.decorators import role_required
 from seguridad.models import BitacoraAuditoria
 
@@ -20,7 +27,11 @@ def panel_coordinacion(request):
     """
     Vista de coordinacion accesible para SuperAdministradores y Coordinadores.
     """
-    return render(request, 'coordinacion/dashboard.html')
+    return render(request, 'coordinacion/dashboard.html', {
+        'registros_pendientes': PerfilPaciente.objects.filter(
+            estado=PerfilPaciente.Estado.PENDIENTE
+        ).count(),
+    })
 
 
 # ============================================
@@ -237,3 +248,105 @@ def derivar_solicitud(request, pk):
 
     messages.success(request, "Solicitud derivada y registrada correctamente.")
     return redirect("coordinacion:listado_solicitudes")
+
+
+# ============================================
+# AB#84 (REQ-17): Revisión de registros de pacientes
+# --------------------------------------------
+# El Coordinador acepta o rechaza los registros hechos en /registro/.
+#   - Aceptar: el perfil pasa a ACEPTADO y la cuenta queda ACTIVA
+#     (is_active y estado cambian juntos, en una sola transacción).
+#   - Rechazar: el perfil pasa a RECHAZADO y la cuenta sigue inactiva.
+# Solo se puede revisar un registro PENDIENTE (no se puede revertir ni
+# repetir). Las acciones son POST + CSRF. El aviso por correo no lleva
+# contraseña, y la bitácora no guarda correo ni nombre.
+# ============================================
+logger = logging.getLogger(__name__)
+
+
+@role_required('Super Administrador', 'Coordinador')
+def lista_registros(request):
+    # El filtro viene por GET: solo se acepta un valor conocido.
+    validos = {valor for valor, _ in PerfilPaciente.Estado.choices}
+    estado = request.GET.get('estado', '')
+    if estado not in validos:
+        estado = PerfilPaciente.Estado.PENDIENTE
+
+    perfiles = PerfilPaciente.objects.select_related('usuario', 'revisado_por').filter(estado=estado)
+    # Pendientes: los más antiguos primero. Revisados: los más recientes primero.
+    if estado == PerfilPaciente.Estado.PENDIENTE:
+        perfiles = perfiles.order_by('fecha_registro')
+    else:
+        perfiles = perfiles.order_by('-fecha_revision', '-fecha_registro')
+
+    return render(request, 'coordinacion/registros.html', {
+        'perfiles': perfiles,
+        'estado_filtro': estado,
+        'estados': PerfilPaciente.Estado.choices,
+        'Estado': PerfilPaciente.Estado,
+    })
+
+
+def _avisar_resultado(request, correo, aceptado):
+    """Aviso al paciente. Un fallo del correo no deshace la revisión."""
+    if aceptado:
+        asunto = "Tu registro fue aprobado - Facultad de Odontología"
+        cuerpo = (
+            "Hola,\n\nTu registro fue aprobado. Ya puedes iniciar sesión con tu "
+            "correo y la contraseña que elegiste en:\n"
+            f"{request.build_absolute_uri(reverse('seguridad:login'))}\n"
+        )
+    else:
+        asunto = "Resultado de tu registro - Facultad de Odontología"
+        cuerpo = (
+            "Hola,\n\nTu registro no pudo ser aprobado. Si crees que se trata de un "
+            "error, comunícate con la coordinación de la clínica.\n"
+        )
+    try:
+        send_mail(asunto, cuerpo, settings.DEFAULT_FROM_EMAIL, [correo])
+    except Exception:  # noqa: BLE001 - un fallo de correo no debe romper la revisión
+        logger.warning("No se pudo enviar el aviso de revisión de registro.")
+
+
+def _revisar_registro(request, pk, aceptar):
+    with transaction.atomic():
+        perfil = get_object_or_404(PerfilPaciente.objects.select_for_update(), pk=pk)
+        if perfil.estado != PerfilPaciente.Estado.PENDIENTE:
+            messages.error(request, "Este registro ya fue revisado.")
+            return redirect('coordinacion:lista_registros')
+
+        usuario = perfil.usuario
+        perfil.estado = (
+            PerfilPaciente.Estado.ACEPTADO if aceptar else PerfilPaciente.Estado.RECHAZADO
+        )
+        perfil.revisado_por = request.user
+        perfil.fecha_revision = timezone.now()
+        perfil.save()
+        # Solo se activa la cuenta al aceptar; al rechazar sigue inactiva.
+        usuario.is_active = aceptar
+        usuario.save(update_fields=['is_active'])
+        BitacoraAuditoria.objects.create(
+            usuario=request.user,
+            accion="Registro de paciente aceptado" if aceptar else "Registro de paciente rechazado",
+            detalles=f"Perfil de paciente #{perfil.pk}.",
+        )
+        correo = usuario.email
+
+    _avisar_resultado(request, correo, aceptar)
+    messages.success(
+        request,
+        "Registro aceptado: la cuenta quedó activa." if aceptar else "Registro rechazado.",
+    )
+    return redirect('coordinacion:lista_registros')
+
+
+@role_required('Super Administrador', 'Coordinador')
+@require_POST
+def aceptar_registro(request, pk):
+    return _revisar_registro(request, pk, aceptar=True)
+
+
+@role_required('Super Administrador', 'Coordinador')
+@require_POST
+def rechazar_registro(request, pk):
+    return _revisar_registro(request, pk, aceptar=False)
