@@ -154,6 +154,18 @@ class Solicitud(models.Model):
         blank=True,
     )
 
+    # AB#83 (REQ-17): cuenta del paciente que hizo la reserva con sesión
+    # iniciada. Es null cuando la solicitud se envió sin cuenta (formulario
+    # público). SET_NULL: borrar la cuenta no borra la historia clínica.
+    paciente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_propias",
+        verbose_name="paciente (cuenta)",
+    )
+
     # --- Campos de gestión, para el panel del Coordinador (REQ-04) ---
     estado = models.CharField(
         "estado",

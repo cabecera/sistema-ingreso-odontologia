@@ -4,7 +4,14 @@
 {% block content %}
 <div class="page-narrow">
   <h1 class="h2 mb-2">Solicitud de atención odontológica</h1>
-  <p class="text-secondary mb-4">Completa tus datos. Los campos con * son obligatorios.</p>
+  {% if perfil %}
+    <p class="text-secondary mb-4">
+      Solicitas como <strong>{{ perfil.nombre_completo }}</strong>; tus datos personales ya están registrados.
+      Los campos con * son obligatorios.
+    </p>
+  {% else %}
+    <p class="text-secondary mb-4">Completa tus datos. Los campos con * son obligatorios.</p>
+  {% endif %}
 
   <form method="post">
     {# Token anti-CSRF: Django rechaza el envío si falta. #}

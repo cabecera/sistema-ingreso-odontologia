@@ -97,6 +97,10 @@
         <div class="collapse navbar-collapse" id="menuPrincipal">
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
             {% block nav_links %}{% endblock %}
+            {% if user.is_authenticated and user.perfil_paciente %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:mis_solicitudes' %}">Mis solicitudes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:nueva_solicitud' %}">Nueva solicitud</a></li>
+            {% endif %}
           </ul>
 
           <div class="d-flex align-items-center gap-3">
@@ -107,7 +111,7 @@
                 <button type="submit" class="btn btn-outline-light btn-sm">Cerrar sesión</button>
               </form>
             {% else %}
-              <a class="btn btn-outline-light btn-sm" href="{% url 'seguridad:login' %}">Acceso interno</a>
+              <a class="btn btn-outline-light btn-sm" href="{% url 'seguridad:login' %}">Iniciar sesión</a>
             {% endif %}
           </div>
         </div>

@@ -110,8 +110,16 @@ class SolicitudForm(forms.ModelForm):
             "antecedentes_familiares": forms.Textarea(attrs={"rows": 4}),
         }
 
-    def __init__(self, *args, **kwargs):
+    # Datos personales que, con sesión iniciada, salen del perfil del paciente
+    # y NO se piden de nuevo (así nadie puede reservar con datos ajenos).
+    CAMPOS_DEL_PERFIL = ("nombre_completo", "fecha_nacimiento", "rut", "telefono")
+
+    def __init__(self, *args, perfil=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.perfil = perfil
+        if perfil is not None:
+            for nombre in self.CAMPOS_DEL_PERFIL:
+                del self.fields[nombre]
 
         # Límites de largo: maxlength (navegador) + validador (servidor).
         # El del navegador se puede saltar; el del servidor no.
@@ -122,7 +130,8 @@ class SolicitudForm(forms.ModelForm):
 
         # El calendario no deja elegir fechas futuras (el modelo también
         # lo valida en el servidor con validar_fecha_nacimiento).
-        self.fields["fecha_nacimiento"].widget.attrs["max"] = date.today().isoformat()
+        if "fecha_nacimiento" in self.fields:
+            self.fields["fecha_nacimiento"].widget.attrs["max"] = date.today().isoformat()
 
         # Sin esto la lista muestra "---------" como primera opción.
         self.fields["especialidad"].empty_label = "Selecciona una especialidad"
@@ -152,6 +161,18 @@ class SolicitudForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        # AB#83: un paciente no puede tener dos solicitudes activas (no
+        # terminadas) para la misma especialidad.
+        especialidad = cleaned.get("especialidad")
+        if self.perfil is not None and especialidad is not None:
+            activas = Solicitud.objects.filter(
+                paciente=self.perfil.usuario, especialidad=especialidad
+            ).exclude(estado=Solicitud.Estado.TERMINADO)
+            if activas.exists():
+                self.add_error(
+                    "especialidad",
+                    "Ya tienes una solicitud en curso para esta especialidad.",
+                )
         # Limpieza de caracteres de control en el resto de los textos largos.
         for nombre in ("experiencia_previa", "antecedentes_personales", "antecedentes_familiares"):
             if nombre in cleaned and cleaned[nombre]:
