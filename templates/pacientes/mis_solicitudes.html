@@ -24,7 +24,10 @@
             <td>{{ s.pk }}</td>
             <td>{{ s.especialidad.nombre }}</td>
             <td>{{ s.fecha_creacion|date:"d/m/Y H:i" }}</td>
-            <td>{{ s.get_estado_display }}</td>
+            <td>
+              {{ s.get_estado_display }}
+              {% if s.ficha %}<div class="small text-secondary">Especialidad indicada: {{ s.ficha.especialidad_requerida.nombre }}</div>{% endif %}
+            </td>
             <td>{% if s.fecha_atencion %}{{ s.fecha_atencion|date:"d/m/Y H:i" }}{% else %}<span class="text-secondary">Por definir</span>{% endif %}</td>
           </tr>
         {% empty %}
