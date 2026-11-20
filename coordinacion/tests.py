@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.contrib.auth.models import Group, User
 from django.test import Client, TestCase
@@ -8,6 +8,11 @@ from django.utils import timezone
 from administracion.models import Especialidad
 from pacientes.models import Solicitud
 from seguridad.models import BitacoraAuditoria
+
+
+def horario_futuro(dias=3):
+    """Valor válido para <input type=datetime-local> (hora local, futura)."""
+    return (timezone.localtime() + timedelta(days=dias)).strftime("%Y-%m-%dT%H:%M")
 
 
 # ============================================
@@ -331,7 +336,7 @@ class DerivarSolicitudTests(TestCase):
     def test_deriva_y_guarda_estudiante_responsable_y_fecha(self):
         respuesta = self.client.post(
             self.url,
-            {"estudiante_asignado": str(self.estudiante.pk)},
+            {"estudiante_asignado": str(self.estudiante.pk), "fecha_atencion": horario_futuro()},
             secure=True,
         )
 
@@ -423,7 +428,9 @@ class AuditoriaDerivacionTests(TestCase):
         cliente = cliente or self.client
         cliente.force_login(usuario)
         return cliente.post(
-            self.url, {"estudiante_asignado": str(estudiante.pk)}, secure=True
+            self.url,
+            {"estudiante_asignado": str(estudiante.pk), "fecha_atencion": horario_futuro()},
+            secure=True,
         )
 
     # ---------- Bitácora ----------
@@ -518,3 +525,140 @@ class AuditoriaDerivacionTests(TestCase):
         )
         self.assertContains(respuesta, "coord_auditoria")
         self.assertContains(respuesta, "Derivada por")
+
+
+# ============================================
+# Task 86 / REQ-18: horario de atención y estados nuevos
+# ============================================
+class HorarioAtencionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.coordinador = User.objects.create_user("coord_horario")
+        cls.coordinador.groups.add(Group.objects.get_or_create(name="Coordinador")[0])
+        cls.estudiante = User.objects.create_user("est_horario")
+        cls.estudiante.groups.add(Group.objects.get_or_create(name="Estudiante")[0])
+        cls.especialidad = Especialidad.objects.create(nombre="Especialidad de Prueba (horario)")
+
+    def setUp(self):
+        self.client.force_login(self.coordinador)
+        self.solicitud = self._crear("Paciente Horario Uno", "99999999-9")
+        self.url = reverse("coordinacion:derivar_solicitud", args=[self.solicitud.pk])
+
+    def _crear(self, nombre, rut, estado=Solicitud.Estado.PENDIENTE, **extra):
+        return Solicitud.objects.create(
+            nombre_completo=nombre,
+            rut=rut,
+            fecha_nacimiento=date(1990, 1, 1),
+            telefono="+56912345678",
+            motivo_consulta="Dolor",
+            especialidad=self.especialidad,
+            estado=estado,
+            **extra,
+        )
+
+    def _derivar(self, fecha):
+        return self.client.post(
+            self.url,
+            {"estudiante_asignado": str(self.estudiante.pk), "fecha_atencion": fecha},
+            secure=True,
+        )
+
+    def _sin_cambios(self):
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.PENDIENTE)
+        self.assertIsNone(self.solicitud.fecha_atencion)
+        self.assertEqual(BitacoraAuditoria.objects.count(), 0)
+
+    # ---------- Fecha válida ----------
+
+    def test_deriva_y_guarda_el_horario_en_hora_local(self):
+        fecha = horario_futuro(5)
+        self._derivar(fecha)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, Solicitud.Estado.DERIVADA)
+        self.assertEqual(
+            timezone.localtime(self.solicitud.fecha_atencion).strftime("%Y-%m-%dT%H:%M"),
+            fecha,
+        )
+
+    def test_la_bitacora_registra_el_horario(self):
+        fecha = horario_futuro(2)
+        self._derivar(fecha)
+        detalles = BitacoraAuditoria.objects.get().detalles
+        esperado = datetime.strptime(fecha, "%Y-%m-%dT%H:%M").strftime("%d-%m-%Y %H:%M")
+        self.assertIn(esperado, detalles)
+
+    # ---------- Fecha inválida ----------
+
+    def test_rechaza_fechas_invalidas(self):
+        ahora = timezone.localtime()
+        invalidas = {
+            "vacía": "",
+            "pasada": (ahora - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+            "justo ahora": (ahora - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M"),
+            "más de un año": (ahora + timedelta(days=400)).strftime("%Y-%m-%dT%H:%M"),
+            "texto": "mañana temprano",
+            "sql": "2026-01-01'; DROP TABLE x; --",
+            "con zona horaria": "2030-01-01T10:00+00:00",
+            "fecha imposible": "2026-02-31T10:00",
+            "año enorme": "9999-12-31T23:59",
+        }
+        for nombre, valor in invalidas.items():
+            with self.subTest(caso=nombre):
+                respuesta = self._derivar(valor)
+                self.assertEqual(respuesta.status_code, 302)
+                self._sin_cambios()
+
+    def test_sin_el_campo_de_fecha_no_deriva(self):
+        respuesta = self.client.post(
+            self.url, {"estudiante_asignado": str(self.estudiante.pk)}, secure=True
+        )
+        self.assertEqual(respuesta.status_code, 302)
+        self._sin_cambios()
+
+    # ---------- Transiciones ----------
+
+    def test_no_se_deriva_una_solicitud_ya_realizada_o_terminada(self):
+        for estado in (Solicitud.Estado.REALIZADO, Solicitud.Estado.TERMINADO):
+            with self.subTest(estado=estado):
+                otra = self._crear(f"Otra {estado}", "11111111-1", estado=estado)
+                url = reverse("coordinacion:derivar_solicitud", args=[otra.pk])
+                self.client.post(
+                    url,
+                    {"estudiante_asignado": str(self.estudiante.pk), "fecha_atencion": horario_futuro()},
+                    secure=True,
+                )
+                otra.refresh_from_db()
+                self.assertEqual(otra.estado, estado)
+                self.assertIsNone(otra.estudiante_asignado)
+
+    # ---------- Listado ----------
+
+    def test_listado_ofrece_selector_de_horario_con_minimo(self):
+        respuesta = self.client.get(reverse("coordinacion:listado_solicitudes"), secure=True)
+        self.assertContains(respuesta, 'type="datetime-local"')
+        self.assertContains(respuesta, f'min="{respuesta.context["min_atencion"]}"')
+
+    def test_listado_muestra_el_horario_de_las_derivadas(self):
+        self._derivar(horario_futuro(4))
+        respuesta = self.client.get(reverse("coordinacion:listado_solicitudes"), secure=True)
+        self.assertContains(respuesta, "Horario de atención")
+        derivada = respuesta.context["derivadas"][0]
+        self.assertIsNotNone(derivada.fecha_atencion)
+
+    def test_realizadas_y_terminadas_siguen_visibles_en_el_listado(self):
+        self._crear("Paciente Realizado", "22222222-2", Solicitud.Estado.REALIZADO)
+        self._crear("Paciente Terminado", "33333333-3", Solicitud.Estado.TERMINADO)
+        url = reverse("coordinacion:listado_solicitudes")
+        respuesta = self.client.get(url, secure=True)
+        self.assertContains(respuesta, "Paciente Realizado")
+        self.assertContains(respuesta, "Paciente Terminado")
+        self.assertEqual(len(respuesta.context["atendidas"]), 2)
+
+    def test_filtro_por_estado_realizado_oculta_las_otras_secciones(self):
+        self._crear("Paciente Realizado", "22222222-2", Solicitud.Estado.REALIZADO)
+        url = reverse("coordinacion:listado_solicitudes")
+        respuesta = self.client.get(url, {"estado": "REALIZADO"}, secure=True)
+        self.assertContains(respuesta, "Paciente Realizado")
+        self.assertNotContains(respuesta, "Paciente Horario Uno")
+        self.assertNotContains(respuesta, "Pendientes (")

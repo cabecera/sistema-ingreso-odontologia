@@ -47,7 +47,7 @@
     </div>
   {% endif %}
 
-  {% if estado_filtro != "DERIVADA" %}
+  {% if not estado_filtro or estado_filtro == "PENDIENTE" %}
   <h2 class="h5 mb-3">Pendientes ({{ pendientes|length }})</h2>
   {% if pendientes %}
     <div class="table-responsive mb-5">
@@ -70,7 +70,7 @@
             <td>{{ solicitud.fecha_creacion|date:"d-m-Y H:i" }}</td>
             <td>
               {% if estudiantes %}
-              <form method="post" action="{% url 'coordinacion:derivar_solicitud' solicitud.pk %}" class="d-flex gap-2">
+              <form method="post" action="{% url 'coordinacion:derivar_solicitud' solicitud.pk %}" class="d-flex flex-wrap gap-2">
                 {% csrf_token %}
                 <label for="estudiante-{{ solicitud.pk }}" class="visually-hidden">Estudiante para {{ solicitud.nombre_completo }}</label>
                 <select id="estudiante-{{ solicitud.pk }}" name="estudiante_asignado" class="form-select form-select-sm" required>
@@ -79,6 +79,8 @@
                     <option value="{{ e.pk }}">{{ e.get_full_name|default:e.username }}</option>
                   {% endfor %}
                 </select>
+                <label for="horario-{{ solicitud.pk }}" class="visually-hidden">Fecha y hora de atención para {{ solicitud.nombre_completo }}</label>
+                <input type="datetime-local" id="horario-{{ solicitud.pk }}" name="fecha_atencion" class="form-control form-control-sm" min="{{ min_atencion }}" required>
                 <button type="submit" class="btn btn-sm btn-primary">Derivar</button>
               </form>
               {% else %}
@@ -95,7 +97,7 @@
   {% endif %}
   {% endif %}
 
-  {% if estado_filtro != "PENDIENTE" %}
+  {% if not estado_filtro or estado_filtro == "DERIVADA" %}
   <h2 class="h5 mb-3">Derivadas ({{ derivadas|length }})</h2>
   {% if derivadas %}
     <div class="table-responsive">
@@ -109,6 +111,7 @@
             <th scope="col">Estudiante asignado</th>
             <th scope="col">Derivada por</th>
             <th scope="col">Fecha de derivación</th>
+            <th scope="col">Horario de atención</th>
           </tr>
         </thead>
         <tbody>
@@ -121,13 +124,48 @@
             <td>{{ solicitud.estudiante_asignado|default:"Sin asignar" }}</td>
             <td>{{ solicitud.derivado_por|default:"—" }}</td>
             <td>{{ solicitud.fecha_derivacion|date:"d-m-Y H:i"|default:"—" }}</td>
+            <td>{{ solicitud.fecha_atencion|date:"d-m-Y H:i"|default:"—" }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p class="text-secondary">{% if hay_filtros %}Ninguna solicitud derivada coincide con los filtros.{% else %}Aún no hay solicitudes derivadas.{% endif %}</p>
+    <p class="text-secondary mb-5">{% if hay_filtros %}Ninguna solicitud derivada coincide con los filtros.{% else %}Aún no hay solicitudes derivadas.{% endif %}</p>
+  {% endif %}
+  {% endif %}
+
+  {% if not estado_filtro or estado_filtro == "REALIZADO" or estado_filtro == "TERMINADO" %}
+  <h2 class="h5 mb-3">Atendidas ({{ atendidas|length }})</h2>
+  {% if atendidas %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bg-white">
+        <thead>
+          <tr>
+            <th scope="col">Paciente</th>
+            <th scope="col">RUT</th>
+            <th scope="col">Especialidad</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Estudiante</th>
+            <th scope="col">Horario de atención</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for solicitud in atendidas %}
+          <tr>
+            <td>{{ solicitud.nombre_completo }}</td>
+            <td>{{ solicitud.rut }}</td>
+            <td>{{ solicitud.especialidad }}</td>
+            <td><span class="badge text-bg-{% if solicitud.estado == 'TERMINADO' %}success{% else %}info{% endif %}">{{ solicitud.get_estado_display }}</span></td>
+            <td>{{ solicitud.estudiante_asignado|default:"—" }}</td>
+            <td>{{ solicitud.fecha_atencion|date:"d-m-Y H:i"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-secondary">{% if hay_filtros %}Ninguna solicitud atendida coincide con los filtros.{% else %}Aún no hay solicitudes atendidas.{% endif %}</p>
   {% endif %}
   {% endif %}
 {% endblock %}
