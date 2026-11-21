@@ -97,9 +97,21 @@
         <div class="collapse navbar-collapse" id="menuPrincipal">
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
             {% block nav_links %}{% endblock %}
-            {% if user.is_authenticated and user.perfil_paciente %}
+            {# Los enlaces solo se muestran según el rol; la seguridad real está en cada vista. #}
+            {% if menu.paciente %}
               <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:mis_solicitudes' %}">Mis solicitudes</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:nueva_solicitud' %}">Nueva solicitud</a></li>
+            {% endif %}
+            {% if menu.coordinacion %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'coordinacion:listado_solicitudes' %}">Solicitudes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'coordinacion:lista_registros' %}">Registros de pacientes</a></li>
+            {% endif %}
+            {% if menu.estudiante %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'estudiantes:mis_pacientes' %}">Mis pacientes</a></li>
+            {% endif %}
+            {% if menu.administracion %}
+              <li class="nav-item"><a class="nav-link" href="{% url 'administracion:usuarios' %}">Usuarios</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'administracion:especialidades' %}">Especialidades</a></li>
             {% endif %}
           </ul>
 

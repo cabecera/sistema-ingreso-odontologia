@@ -2,11 +2,12 @@
 {% block title %}Panel del estudiante{% endblock %}
 {% block content %}
 <div class="page-narrow">
-  <h1>Panel del estudiante</h1>
-  <p class="text-secondary">
-    Página de prueba (Task 44) para verificar que Estudiantes, Coordinadores
-    y el Super Administrador pueden entrar aquí. El listado real de pacientes
-    derivados se construye en sprints futuros (REQ-06).
-  </p>
+  <h1 class="mb-4">Panel del estudiante</h1>
+  <div class="list-group">
+    <a class="list-group-item list-group-item-action" href="{% url 'estudiantes:mis_pacientes' %}">
+      <strong>Mis pacientes</strong>
+      <div class="small text-secondary">Pacientes derivados a ti: marcar la atención como realizada y completar la ficha.</div>
+    </a>
+  </div>
 </div>
 {% endblock %}

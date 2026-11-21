@@ -63,9 +63,9 @@ class ReservaPacienteTests(TestCase):
         r = self.client.post("/login/", {"username": "pac.a@example.com", "password": CLAVE}, secure=True)
         self.assertRedirects(r, "/mis-solicitudes/", fetch_redirect_response=False)
 
-    def test_personal_sigue_yendo_al_inicio(self):
+    def test_el_coordinador_va_a_su_panel(self):
         r = self.client.post("/login/", {"username": "coord_res", "password": CLAVE}, secure=True)
-        self.assertRedirects(r, "/", fetch_redirect_response=False)
+        self.assertRedirects(r, "/coordinacion/", fetch_redirect_response=False)
 
     def test_next_manda_y_un_destino_externo_se_ignora(self):
         r = self.client.post("/login/?next=/coordinacion/", {"username": "coord_res", "password": CLAVE}, secure=True)
