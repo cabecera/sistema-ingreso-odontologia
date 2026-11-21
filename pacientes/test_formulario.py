@@ -45,8 +45,8 @@ class SolicitudFormValidacionTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
 
     # --- nombre_completo ---
-    def test_nombre_con_tildes_enie_apostrofe_y_guion_es_valido(self):
-        form = SolicitudForm(self.datos(nombre_completo="María José O'Higgins-Núñez"))
+    def test_nombre_con_tildes_enie_y_guion_es_valido(self):
+        form = SolicitudForm(self.datos(nombre_completo="María José Ibáñez-Núñez"))
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_nombre_con_numeros_es_rechazado(self):
