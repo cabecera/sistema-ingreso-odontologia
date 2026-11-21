@@ -37,13 +37,15 @@ class RevisionRegistrosTests(TestCase):
         cls.grupo_paciente = grupos["Paciente"]
 
     def crear_perfil(self, correo=CORREO, nombre="María José Pérez"):
+        # RUT distinto en cada perfil: el RUT es único (ingreso con RUT).
+        RevisionRegistrosTests._n = getattr(RevisionRegistrosTests, "_n", 0) + 1
         usuario = User.objects.create_user(
             correo, email=correo, password=CLAVE, is_active=False
         )
         usuario.groups.add(self.grupo_paciente)
         return PerfilPaciente.objects.create(
             usuario=usuario, nombre_completo=nombre,
-            fecha_nacimiento=date(1990, 1, 1), rut="12345678-5",
+            fecha_nacimiento=date(1990, 1, 1), rut=f"{20000000 + RevisionRegistrosTests._n}-1",
             telefono="+56 9 1234 5678",
         )
 

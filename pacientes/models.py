@@ -25,6 +25,7 @@ from django.conf import settings
 # el contexto del proyecto (no AES-256 manual).
 # ============================================
 from encrypted_model_fields.fields import EncryptedCharField, EncryptedTextField
+from .rut_login import hash_rut
 from .validators import (
     formatear_rut,
     validar_fecha_nacimiento,
@@ -234,6 +235,9 @@ class PerfilPaciente(models.Model):
     # Cifrado: no se puede filtrar ni exigir unicidad (igual que en Solicitud).
     rut = EncryptedCharField("RUT", max_length=100, validators=[validar_rut])
     telefono = models.CharField("teléfono", max_length=20)
+    # Índice ciego del RUT (ver rut_login.py): permite ingresar con el RUT y
+    # evitar RUTs repetidos sin guardar el RUT en claro.
+    rut_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
 
     estado = models.CharField(
         "estado", max_length=10, choices=Estado.choices, default=Estado.PENDIENTE
@@ -262,6 +266,7 @@ class PerfilPaciente(models.Model):
 
     def save(self, *args, **kwargs):
         self.rut = formatear_rut(self.rut)
+        self.rut_hash = hash_rut(self.rut)
         super().save(*args, **kwargs)
 
 

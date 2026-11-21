@@ -5,6 +5,7 @@
 # ============================================
 
 import logging
+import secrets
 
 from django.conf import settings
 from django.contrib import messages
@@ -22,6 +23,7 @@ from seguridad.models import BitacoraAuditoria
 
 from .models import PerfilPaciente, Solicitud
 from .forms import RegistroPacienteForm, SolicitudForm
+from .rut_login import hash_rut
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +114,8 @@ def detalle_paciente(request, pk):
 # --------------------------------------------
 # - La cuenta se crea INACTIVA: no puede iniciar sesión hasta que el
 #   Coordinador la acepte (AB#84).
-# - Anti-enumeración: si el correo ya existe, se muestra exactamente la
+# - El paciente ingresa con su RUT; el username interno es opaco.
+# - Anti-enumeración: si el correo o el RUT ya existen, se muestra exactamente la
 #   misma página de "registro recibido" y no se crea nada, así nadie
 #   puede averiguar qué correos están registrados.
 # - La bitácora no guarda datos personales (ni correo ni nombre).
@@ -120,19 +123,36 @@ def detalle_paciente(request, pk):
 GRUPO_PACIENTE = "Paciente"
 
 
+def _ya_registrado(correo, rut_hash):
+    """True si el correo o el RUT ya pertenecen a una cuenta."""
+    if User.objects.filter(email__iexact=correo).exists():
+        return True
+    return bool(rut_hash) and PerfilPaciente.objects.filter(rut_hash=rut_hash).exists()
+
+
+def _nuevo_username():
+    """Nombre de usuario interno y opaco: el paciente ingresa con su RUT, así
+    que ni el correo ni el RUT quedan como nombre de usuario en claro."""
+    while True:
+        candidato = "p" + secrets.token_hex(6)
+        if not User.objects.filter(username=candidato).exists():
+            return candidato
+
+
 def _registrar_paciente(datos):
     """Crea usuario inactivo + perfil. Devuelve True si se creó, False si
-    el correo ya estaba registrado."""
+    el correo o el RUT ya estaban registrados."""
     correo = datos["correo"]
-    if User.objects.filter(username__iexact=correo).exists():
+    rut_hash = hash_rut(datos["rut"])
+    if _ya_registrado(correo, rut_hash):
         # Hash ficticio: iguala el tiempo de respuesta con el de un registro
-        # nuevo, para que medir la latencia no revele correos registrados.
+        # nuevo, para que medir la latencia no revele datos ya registrados.
         make_password(datos["password1"])
         return False
     try:
         with transaction.atomic():
             usuario = User.objects.create_user(
-                username=correo,
+                username=_nuevo_username(),
                 email=correo,
                 password=datos["password1"],
                 first_name=datos["nombre_completo"][:150],
@@ -153,9 +173,9 @@ def _registrar_paciente(datos):
                 detalles=f"Perfil de paciente #{perfil.pk} queda pendiente de revisión.",
             )
     except IntegrityError:
-        # Dos registros simultáneos con el mismo correo: gana el primero.
+        # Dos registros simultáneos con el mismo correo o RUT: gana el primero.
         # Cualquier otro error de integridad NO se oculta: se propaga (500).
-        if User.objects.filter(username__iexact=correo).exists():
+        if _ya_registrado(correo, rut_hash):
             return False
         raise
     return True

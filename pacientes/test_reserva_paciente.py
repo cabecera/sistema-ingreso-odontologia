@@ -60,27 +60,27 @@ class ReservaPacienteTests(TestCase):
 
     # ---------- login por rol ----------
     def test_paciente_aceptado_inicia_sesion_y_va_a_mis_solicitudes(self):
-        r = self.client.post("/login/", {"username": "pac.a@example.com", "password": CLAVE}, secure=True)
+        r = self.client.post("/login/", {"username": "12.345.678-5", "password": CLAVE}, secure=True)
         self.assertRedirects(r, "/mis-solicitudes/", fetch_redirect_response=False)
 
     def test_el_coordinador_va_a_su_panel(self):
-        r = self.client.post("/login/", {"username": "coord_res", "password": CLAVE}, secure=True)
+        r = self.client.post("/login/", {"username": "coord_res", "password": CLAVE, "tipo": "personal"}, secure=True)
         self.assertRedirects(r, "/coordinacion/", fetch_redirect_response=False)
 
     def test_next_manda_y_un_destino_externo_se_ignora(self):
-        r = self.client.post("/login/?next=/coordinacion/", {"username": "coord_res", "password": CLAVE}, secure=True)
+        r = self.client.post("/login/?next=/coordinacion/", {"username": "coord_res", "password": CLAVE, "tipo": "personal"}, secure=True)
         self.assertRedirects(r, "/coordinacion/", fetch_redirect_response=False)
         self.client.logout()
         r = self.client.post("/login/?next=https://malo.example.com/",
-                             {"username": "pac.a@example.com", "password": CLAVE}, secure=True)
+                             {"username": "12.345.678-5", "password": CLAVE}, secure=True)
         self.assertRedirects(r, "/mis-solicitudes/", fetch_redirect_response=False)
 
     def test_pendiente_o_rechazado_no_inician_sesion(self):
         self.crear_paciente("pend@example.com", "Ana Pendiente", "22222222-2", estado="PENDIENTE", activo=False)
         self.crear_paciente("rech@example.com", "Rosa Rechazada", "33333333-3", estado="RECHAZADO", activo=False)
-        for correo in ("pend@example.com", "rech@example.com"):
-            with self.subTest(correo=correo):
-                r = self.client.post("/login/", {"username": correo, "password": CLAVE}, secure=True)
+        for rut in ("22.222.222-2", "33.333.333-3"):
+            with self.subTest(rut=rut):
+                r = self.client.post("/login/", {"username": rut, "password": CLAVE}, secure=True)
                 self.assertEqual(r.status_code, 200)
                 self.assertNotIn("_auth_user_id", self.client.session)
 
@@ -164,7 +164,7 @@ class ReservaPacienteTests(TestCase):
 
     def test_paciente_con_registro_pendiente_o_rechazado_no_puede_reservar(self):
         for estado in ("PENDIENTE", "RECHAZADO"):
-            usuario = self.crear_paciente(f"{estado.lower()}@example.com", "Sin Aceptar", "22222222-2",
+            usuario = self.crear_paciente(f"{estado.lower()}@example.com", "Sin Aceptar", ("44444444-4" if estado == "PENDIENTE" else "55555555-5"),
                                           estado=estado)
             self.client.force_login(usuario)
             with self.subTest(estado=estado):

@@ -228,7 +228,7 @@ class RegistroPacienteForm(forms.ModelForm):
         return normalizar_telefono(self.cleaned_data["telefono"])
 
     def clean_correo(self):
-        # El correo se usa como nombre de usuario: siempre en minúsculas.
+        # Siempre en minúsculas, para detectar correos repetidos.
         return self.cleaned_data["correo"].strip().lower()
 
     def clean(self):
@@ -241,7 +241,7 @@ class RegistroPacienteForm(forms.ModelForm):
                 # Mismos validadores de AUTH_PASSWORD_VALIDATORS (largo,
                 # contraseñas comunes, solo números, parecido al correo/nombre).
                 candidato = User(
-                    username=cleaned.get("correo", ""),
+                    username="",
                     email=cleaned.get("correo", ""),
                     first_name=cleaned.get("nombre_completo", ""),
                 )

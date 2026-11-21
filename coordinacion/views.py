@@ -332,7 +332,7 @@ def _avisar_resultado(request, correo, aceptado):
         asunto = "Tu registro fue aprobado - Facultad de Odontología"
         cuerpo = (
             "Hola,\n\nTu registro fue aprobado. Ya puedes iniciar sesión con tu "
-            "correo y la contraseña que elegiste en:\n"
+            "RUT y la contraseña que elegiste en:\n"
             f"{request.build_absolute_uri(reverse('seguridad:login'))}\n"
         )
     else:
