@@ -1,18 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Panel de administración{% endblock %}
 {% block content %}
-<div class="page-narrow">
-  <h1>Panel de administración</h1>
-  <p class="text-secondary">Gestión del personal que usa el sistema.</p>
-  <div class="list-group">
-    <a class="list-group-item list-group-item-action" href="{% url 'administracion:usuarios' %}">
-      <strong>Usuarios</strong>
-      <span class="d-block text-secondary small">Crear cuentas y activar o desactivar al personal.</span>
-    </a>
-    <a class="list-group-item list-group-item-action" href="{% url 'administracion:especialidades' %}">
-      <strong>Especialidades</strong>
-      <span class="d-block text-secondary small">Catálogo que ve el paciente en el formulario público.</span>
+<h1 class="mb-4">Panel de administración</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'administracion:usuarios' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ usuarios_activos }}</div>
+        <div class="text-secondary">Usuarios activos{% if usuarios_inactivos %} <span class="small">({{ usuarios_inactivos }} inactivos)</span>{% endif %}</div>
+      </div>
     </a>
   </div>
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'administracion:especialidades' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ especialidades_activas }}</div>
+        <div class="text-secondary">Especialidades activas</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'coordinacion:lista_registros' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ registros_pendientes }}</div>
+        <div class="text-secondary">Registros por revisar</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="list-group">
+  <a class="list-group-item list-group-item-action" href="{% url 'administracion:usuarios' %}">
+    <strong>Usuarios</strong>
+    <span class="d-block text-secondary small">Crear cuentas y activar o desactivar al personal.</span>
+  </a>
+  <a class="list-group-item list-group-item-action" href="{% url 'administracion:especialidades' %}">
+    <strong>Especialidades</strong>
+    <span class="d-block text-secondary small">Catálogo que ve el paciente en el formulario público.</span>
+  </a>
+  <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:listado_solicitudes' %}">
+    <strong>Solicitudes</strong>
+    <span class="d-block text-secondary small">Listado de solicitudes de atención y su estado.</span>
+  </a>
+  <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:lista_estudiantes' %}">
+    <strong>Estudiantes</strong>
+    <span class="d-block text-secondary small">Cuentas de estudiantes y su carga de casos.</span>
+  </a>
 </div>
 {% endblock %}

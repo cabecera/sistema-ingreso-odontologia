@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponseNotAllowed
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,9 +15,21 @@ from seguridad.models import BitacoraAuditoria
 @role_required('Super Administrador', 'Coordinador', 'Estudiante')
 def panel_estudiantes(request):
     """
-    Vista accesible para perfiles autorizados en el módulo de estudiantes.
+    Panel del estudiante: resumen de SUS casos. El filtro usa request.user
+    (nunca un id de la URL), así no se ven pacientes de otro estudiante.
     """
-    return render(request, 'estudiantes/index.html')
+    mias = Solicitud.objects.filter(estudiante_asignado=request.user)
+    conteos = mias.aggregate(
+        por_atender=Count('pk', filter=Q(estado=Solicitud.Estado.DERIVADA)),
+        por_ficha=Count('pk', filter=Q(estado=Solicitud.Estado.REALIZADO)),
+        terminadas=Count('pk', filter=Q(estado=Solicitud.Estado.TERMINADO)),
+    )
+    proximas = (
+        mias.exclude(estado=Solicitud.Estado.TERMINADO)
+        .select_related('especialidad')
+        .order_by('fecha_atencion', 'fecha_creacion')[:5]
+    )
+    return render(request, 'estudiantes/index.html', {'conteos': conteos, 'proximas': proximas})
 
 
 # Task 50 / REQ-06

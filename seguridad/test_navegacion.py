@@ -19,21 +19,22 @@ ENLACES = {
     "solicitudes": "/coordinacion/listado/",
     "registros": "/coordinacion/registros/",
     "mis_pacientes": "/estudiantes/mis-pacientes/",
+    "estudiantes": "/coordinacion/estudiantes/",
     "usuarios": "/administracion/usuarios/",
     "especialidades": "/administracion/especialidades/",
 }
 # Enlaces del menú que debe ver cada rol (el resto NO debe aparecer).
 ESPERADOS = {
     "Paciente": {"mis_solicitudes"},  # "/" siempre es el logo; "Nueva solicitud" se prueba aparte
-    "Coordinador": {"solicitudes", "registros"},
+    "Coordinador": {"solicitudes", "registros", "estudiantes"},
     "Estudiante": {"mis_pacientes"},
-    "Super Administrador": {"solicitudes", "registros", "usuarios", "especialidades"},
-    "superusuario": {"solicitudes", "registros", "usuarios", "especialidades"},
+    "Super Administrador": {"solicitudes", "registros", "estudiantes", "usuarios", "especialidades"},
+    "superusuario": {"solicitudes", "registros", "estudiantes", "usuarios", "especialidades"},
 }
 DESTINO_LOGIN = {
     "Paciente": "/mis-solicitudes/",
     "Coordinador": "/coordinacion/",
-    "Estudiante": "/estudiantes/mis-pacientes/",
+    "Estudiante": "/estudiantes/",
     "Super Administrador": "/administracion/",
     "superusuario": "/administracion/",
 }
@@ -52,8 +53,10 @@ class NavegacionPorRolTests(TestCase):
         cls.usuarios["superusuario"] = User.objects.create_superuser("nav_superuser", password=CLAVE)
 
     def menu(self, rol):
+        # Se mira el menú desde la página principal del rol (el personal que
+        # abre "/" es enviado a ella).
         self.client.force_login(self.usuarios[rol])
-        return self.client.get("/", secure=True).content.decode()
+        return self.client.get(DESTINO_LOGIN[rol], secure=True).content.decode()
 
     def test_cada_rol_ve_solo_sus_enlaces(self):
         for rol, esperados in ESPERADOS.items():

@@ -83,7 +83,7 @@
   <header>
     <nav class="navbar navbar-expand-md navbar-dark site-nav" aria-label="Navegación principal">
       <div class="container">
-        <a class="navbar-brand d-flex flex-column" href="/">
+        <a class="navbar-brand d-flex flex-column" href="{{ inicio_url|default:'/' }}">
           <span class="brand-title">Facultad de Odontología</span>
           <span class="brand-sub">Universidad de Concepción</span>
         </a>
@@ -105,6 +105,7 @@
             {% if menu.coordinacion %}
               <li class="nav-item"><a class="nav-link" href="{% url 'coordinacion:listado_solicitudes' %}">Solicitudes</a></li>
               <li class="nav-item"><a class="nav-link" href="{% url 'coordinacion:lista_registros' %}">Registros de pacientes</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'coordinacion:lista_estudiantes' %}">Estudiantes</a></li>
             {% endif %}
             {% if menu.estudiante %}
               <li class="nav-item"><a class="nav-link" href="{% url 'estudiantes:mis_pacientes' %}">Mis pacientes</a></li>

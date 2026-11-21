@@ -208,6 +208,6 @@ class ReservaPacienteTests(TestCase):
         r = self.client.get("/", secure=True)
         self.assertNotContains(r, "Mis solicitudes")
         self.client.force_login(self.coordinador)
-        self.assertNotContains(self.client.get("/", secure=True), "Mis solicitudes")
+        self.assertNotContains(self.client.get("/", secure=True, follow=True), "Mis solicitudes")
         self.client.force_login(self.paciente)
         self.assertContains(self.client.get("/", secure=True), "Mis solicitudes")

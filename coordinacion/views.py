@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -25,13 +26,51 @@ from seguridad.models import BitacoraAuditoria
 @role_required('Super Administrador', 'Coordinador')
 def panel_coordinacion(request):
     """
-    Vista de coordinacion accesible para SuperAdministradores y Coordinadores.
+    Panel del Coordinador: lo que requiere acción y accesos directos.
+    Las vistas previas no muestran RUT ni antecedentes (minimización de datos).
     """
+    conteos = Solicitud.objects.aggregate(
+        pendientes=Count('pk', filter=Q(estado=Solicitud.Estado.PENDIENTE)),
+        derivadas=Count('pk', filter=Q(estado=Solicitud.Estado.DERIVADA)),
+        atendidas=Count('pk', filter=Q(estado__in=[
+            Solicitud.Estado.REALIZADO, Solicitud.Estado.TERMINADO])),
+    )
+    registros = PerfilPaciente.objects.filter(estado=PerfilPaciente.Estado.PENDIENTE)
     return render(request, 'coordinacion/dashboard.html', {
-        'registros_pendientes': PerfilPaciente.objects.filter(
-            estado=PerfilPaciente.Estado.PENDIENTE
-        ).count(),
+        'conteos': conteos,
+        'registros_pendientes': registros.count(),
+        'ultimos_registros': registros.order_by('fecha_registro')[:5],
+        'proximas_solicitudes': (
+            Solicitud.objects.filter(estado=Solicitud.Estado.PENDIENTE)
+            .select_related('especialidad').order_by('fecha_creacion')[:5]
+        ),
+        'estudiantes_activos': get_user_model().objects.filter(
+            groups__name='Estudiante', is_active=True).count(),
     })
+
+
+# ============================================
+# Estudiantes: lista de solo lectura para el Coordinador
+# --------------------------------------------
+# Cuentas activas del rol Estudiante con su carga de casos. Sirve para
+# decidir a quién derivar. No muestra datos de los pacientes.
+# ============================================
+@role_required('Super Administrador', 'Coordinador')
+def lista_estudiantes(request):
+    estudiantes = (
+        get_user_model().objects
+        .filter(groups__name='Estudiante', is_active=True)
+        .annotate(
+            por_atender=Count('solicitudes_asignadas', filter=Q(
+                solicitudes_asignadas__estado=Solicitud.Estado.DERIVADA)),
+            por_ficha=Count('solicitudes_asignadas', filter=Q(
+                solicitudes_asignadas__estado=Solicitud.Estado.REALIZADO)),
+            terminadas=Count('solicitudes_asignadas', filter=Q(
+                solicitudes_asignadas__estado=Solicitud.Estado.TERMINADO)),
+        )
+        .order_by('first_name', 'last_name', 'username')
+    )
+    return render(request, 'coordinacion/estudiantes.html', {'estudiantes': estudiantes})
 
 
 # ============================================

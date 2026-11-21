@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
 from seguridad.decorators import role_required
+from seguridad.inicio import pagina_inicio
 from seguridad.models import BitacoraAuditoria
 
 from .models import PerfilPaciente, Solicitud
@@ -40,6 +41,12 @@ def nueva_solicitud(request):
     # y la solicitud queda ligada a su cuenta. Sin sesión, sigue siendo
     # el formulario público de siempre.
     perfil = _perfil_del_paciente(request.user)
+    # El personal (administrador, coordinador, estudiante) no usa el formulario
+    # público: al abrir "/" va directo a su panel. Paciente y anónimo lo ven.
+    if request.method == "GET" and request.user.is_authenticated and perfil is None:
+        inicio = pagina_inicio(request.user)
+        if inicio and not request.user.groups.filter(name="Paciente").exists():
+            return redirect(inicio)
     if request.method == "POST":
         form = SolicitudForm(request.POST, perfil=perfil)
         if form.is_valid():
