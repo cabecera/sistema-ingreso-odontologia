@@ -25,6 +25,15 @@ RUTA = "/v3/smtp/email"
 TIMEOUT_SEGUNDOS = 10
 
 
+def _codigo_de_error(texto):
+    """Código corto de error de Brevo (p. ej. "unauthorized"); no incluye el mensaje."""
+    try:
+        codigo = json.loads(texto).get("code", "sin código")
+    except (ValueError, AttributeError, TypeError):
+        return "sin código"
+    return str(codigo)[:40]
+
+
 class BrevoEmailBackend(BaseEmailBackend):
 
     def send_messages(self, email_messages):
@@ -38,8 +47,10 @@ class BrevoEmailBackend(BaseEmailBackend):
             try:
                 self._enviar(clave, mensaje)
                 enviados += 1
-            except Exception:  # noqa: BLE001 - se informa solo el tipo de error, sin datos personales
-                logger.warning("No se pudo enviar el correo por Brevo.")
+            except Exception as error:  # noqa: BLE001
+                # Se registra el motivo (estado/código de Brevo o tipo de error de
+                # red), nunca el destinatario, el contenido ni la clave.
+                logger.warning("No se pudo enviar el correo por Brevo: %s", error)
                 if not self.fail_silently:
                     raise
         return enviados
@@ -66,8 +77,10 @@ class BrevoEmailBackend(BaseEmailBackend):
                 },
             )
             respuesta = conexion.getresponse()
-            respuesta.read()
+            texto = respuesta.read()
         finally:
             conexion.close()
         if respuesta.status not in (200, 201, 202):
-            raise RuntimeError(f"Brevo respondió con el estado {respuesta.status}.")
+            raise RuntimeError(
+                f"Brevo respondió con el estado {respuesta.status} ({_codigo_de_error(texto)})"
+            )

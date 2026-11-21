@@ -54,6 +54,18 @@ class BrevoBackendTests(SimpleTestCase):
             with self.assertRaises(OSError):
                 BrevoEmailBackend().send_messages([mensaje()])
 
+    def test_el_log_indica_el_estado_y_el_codigo_de_brevo(self):
+        with mock.patch("seguridad.email_backend.http.client.HTTPSConnection") as conexion:
+            r = respuesta(401)
+            r.read.return_value = b'{"code": "unauthorized", "message": "IP no autorizada paciente@example.com"}'
+            conexion.return_value.getresponse.return_value = r
+            with self.assertLogs("seguridad.email_backend", "WARNING") as log:
+                BrevoEmailBackend(fail_silently=True).send_messages([mensaje()])
+        texto = " ".join(log.output)
+        self.assertIn("401", texto)
+        self.assertIn("unauthorized", texto)
+        self.assertNotIn("paciente@example.com", texto)  # el mensaje libre de Brevo no se copia
+
     def test_el_log_de_error_no_incluye_correo_ni_clave(self):
         with self.assertLogs("seguridad.email_backend", "WARNING") as log:
             self.enviar(estado=500, fail_silently=True)
