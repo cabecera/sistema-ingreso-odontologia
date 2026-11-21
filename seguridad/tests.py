@@ -103,13 +103,13 @@ class AccesoPanelesPorRolTests(TestCase):
 
     def _codigos(self, usuario):
         self.client.force_login(usuario)
-        return [self.client.get(ruta).status_code for ruta in self.RUTAS]
+        return [self.client.get(ruta, secure=True).status_code for ruta in self.RUTAS]
 
     def test_sin_sesion_redirige_al_login(self):
         for ruta in self.RUTAS:
             with self.subTest(ruta=ruta):
                 self.assertRedirects(
-                    self.client.get(ruta),
+                    self.client.get(ruta, secure=True),
                     f"/login/?next={ruta}",
                     fetch_redirect_response=False,
                 )
@@ -130,7 +130,7 @@ class AccesoPanelesPorRolTests(TestCase):
         self.assertEqual(self._codigos(self.superuser), [200, 200, 200])
 
     def test_formulario_publico_responde_200(self):
-        respuesta = self.client.get("/")
+        respuesta = self.client.get("/", secure=True)
         self.assertEqual(respuesta.status_code, 200)
 
 
