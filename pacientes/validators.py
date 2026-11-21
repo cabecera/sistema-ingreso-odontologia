@@ -72,14 +72,41 @@ def validar_rut(valor: str) -> None:
         raise ValidationError("El RUT no es válido. Revisa el dígito verificador.")
 
 
+EDAD_MAXIMA = 120
+EDAD_MINIMA_REGISTRO = 18
+
+
+def _hace_anios(anios: int, hoy: date | None = None) -> date:
+    """Fecha de hace N años exactos (29 de febrero -> 28 de febrero)."""
+    hoy = hoy or date.today()
+    try:
+        return hoy.replace(year=hoy.year - anios)
+    except ValueError:
+        return hoy.replace(year=hoy.year - anios, day=28)
+
+
+def limites_fecha_nacimiento(edad_minima: int = 0):
+    """(más antigua, más reciente) permitidas; se usan también como min/max del calendario."""
+    return _hace_anios(EDAD_MAXIMA), _hace_anios(edad_minima)
+
+
 def validar_fecha_nacimiento(valor: date) -> None:
     """
     Verifica que la fecha de nacimiento sea razonable: ni futura
-    ni más antigua que 120 años. Evita errores de tipeo del
-    paciente (por ejemplo, invertir día y mes).
+    ni de hace más de 120 años. Evita errores de tipeo del
+    paciente (por ejemplo, el año 1800).
     """
-    hoy = date.today()
-    if valor > hoy:
+    if valor > date.today():
         raise ValidationError("La fecha de nacimiento no puede ser futura.")
-    if valor.year < hoy.year - 120:
-        raise ValidationError("Revisa la fecha de nacimiento ingresada.")
+    if valor < _hace_anios(EDAD_MAXIMA):
+        raise ValidationError(
+            f"La fecha de nacimiento no puede ser de hace más de {EDAD_MAXIMA} años."
+        )
+
+
+def validar_mayor_de_edad(valor: date) -> None:
+    """Para crear una cuenta de paciente: al menos 18 años cumplidos."""
+    if valor > _hace_anios(EDAD_MINIMA_REGISTRO):
+        raise ValidationError(
+            f"Debes ser mayor de {EDAD_MINIMA_REGISTRO} años para registrarte."
+        )
