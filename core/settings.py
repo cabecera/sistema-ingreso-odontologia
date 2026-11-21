@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import environ
-import sys
 
 from seguridad.claves import CLAVE_CIFRADO_DE_PRUEBA, CLAVE_SECRETA_DE_PRUEBA, validar_claves
 
@@ -270,8 +269,7 @@ LOGOUT_REDIRECT_URL = 'seguridad:login'
 # (ver riesgo abierto de Task 38).
 # ============================================
 if not DEBUG:
-    _default_ssl_redirect = "test" not in sys.argv
-    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=_default_ssl_redirect)
+    SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
