@@ -51,7 +51,7 @@ class RegistroPacienteTests(TestCase):
         self.assertRedirects(
             r, reverse("pacientes:registro_enviado"), fetch_redirect_response=False
         )
-        usuario = User.objects.get(username=CORREO)
+        usuario = User.objects.get(email=CORREO)
         self.assertFalse(usuario.is_active)
         self.assertFalse(usuario.is_staff)
         self.assertFalse(usuario.is_superuser)
@@ -62,11 +62,11 @@ class RegistroPacienteTests(TestCase):
 
     def test_correo_se_guarda_en_minusculas(self):
         self.enviar(correo="  Paciente.PRUEBA@Example.com ")
-        self.assertTrue(User.objects.filter(username=CORREO).exists())
+        self.assertTrue(User.objects.filter(email=CORREO).exists())
 
     def test_la_contrasena_se_guarda_con_hash(self):
         self.enviar()
-        usuario = User.objects.get(username=CORREO)
+        usuario = User.objects.get(email=CORREO)
         self.assertNotEqual(usuario.password, CLAVE)
         self.assertNotIn(CLAVE, usuario.password)
         self.assertTrue(usuario.check_password(CLAVE))
@@ -76,14 +76,14 @@ class RegistroPacienteTests(TestCase):
         entro = self.client.login(username=CORREO, password=CLAVE)
         self.assertFalse(entro)
         r = self.client.post(
-            "/login/", {"username": CORREO, "password": CLAVE}, secure=True
+            "/login/", {"username": "12.345.678-5", "password": CLAVE}, secure=True
         )
         self.assertEqual(r.status_code, 200)  # vuelve al login, sin sesión
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_cuenta_pendiente_no_accede_a_paginas_del_personal(self):
         self.enviar()
-        usuario = User.objects.get(username=CORREO)
+        usuario = User.objects.get(email=CORREO)
         usuario.is_active = True  # aun aceptada, el rol Paciente no abre estas páginas
         usuario.save()
         self.client.force_login(usuario)
@@ -110,11 +110,11 @@ class RegistroPacienteTests(TestCase):
         self.assertRedirects(
             r, reverse("pacientes:registro_enviado"), fetch_redirect_response=False
         )
-        self.assertEqual(User.objects.filter(username=CORREO).count(), 1)
+        self.assertEqual(User.objects.filter(email=CORREO).count(), 1)
         self.assertEqual(PerfilPaciente.objects.count(), 1)
         self.assertEqual(len(mail.outbox), 0)
         # La cuenta original no fue modificada.
-        self.assertTrue(User.objects.get(username=CORREO).check_password(CLAVE))
+        self.assertTrue(User.objects.get(email=CORREO).check_password(CLAVE))
 
     def test_correo_repetido_ignora_mayusculas(self):
         self.enviar()
@@ -122,7 +122,7 @@ class RegistroPacienteTests(TestCase):
         self.assertEqual(User.objects.count(), 1)
 
     def test_no_se_puede_pisar_a_un_usuario_del_personal(self):
-        User.objects.create_user("coordinador@example.com", password="x-Clave#2026z")
+        User.objects.create_user("coordinador1", email="coordinador@example.com", password="x-Clave#2026z")
         self.enviar(correo="coordinador@example.com")
         self.assertEqual(PerfilPaciente.objects.count(), 0)
 
@@ -168,7 +168,7 @@ class RegistroPacienteTests(TestCase):
         # Campos extra enviados por un atacante deben ignorarse.
         self.enviar(is_staff="on", is_superuser="on", is_active="on", rol="Super Administrador",
                     estado="ACEPTADO")
-        usuario = User.objects.get(username=CORREO)
+        usuario = User.objects.get(email=CORREO)
         self.assertFalse(usuario.is_staff)
         self.assertFalse(usuario.is_superuser)
         self.assertFalse(usuario.is_active)
@@ -214,4 +214,4 @@ class RegistroPacienteTests(TestCase):
         with mock.patch("pacientes.views.send_mail", side_effect=OSError("smtp caído")):
             r = self.enviar()
         self.assertEqual(r.status_code, 302)
-        self.assertTrue(User.objects.filter(username=CORREO).exists())
+        self.assertTrue(User.objects.filter(email=CORREO).exists())

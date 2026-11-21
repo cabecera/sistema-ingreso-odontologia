@@ -8,8 +8,12 @@
 # Las peticiones usan secure=True para no depender de DEBUG.
 # ============================================
 
+from datetime import date
+
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
+
+from pacientes.models import PerfilPaciente
 
 CLAVE = "Clave-Segura#2026x"
 
@@ -50,6 +54,11 @@ class NavegacionPorRolTests(TestCase):
             usuario = User.objects.create_user(f"nav_{rol.replace(' ', '_').lower()}", password=CLAVE)
             usuario.groups.add(grupo)
             cls.usuarios[rol] = usuario
+        PerfilPaciente.objects.create(
+            usuario=cls.usuarios["Paciente"], nombre_completo="Nav Paciente",
+            fecha_nacimiento=date(1990, 1, 1), rut="12345678-5", telefono="+56 9 1234 5678",
+            estado="ACEPTADO",
+        )
         cls.usuarios["superusuario"] = User.objects.create_superuser("nav_superuser", password=CLAVE)
 
     def menu(self, rol):
@@ -94,9 +103,12 @@ class NavegacionPorRolTests(TestCase):
             usuario = self.usuarios[rol]
             with self.subTest(rol=rol):
                 self.client.logout()
-                r = self.client.post(
-                    "/login/", {"username": usuario.username, "password": CLAVE}, secure=True
+                # Paciente ingresa con RUT; el resto, como personal con su usuario.
+                datos = (
+                    {"username": "12.345.678-5", "tipo": "paciente"} if rol == "Paciente"
+                    else {"username": usuario.username, "tipo": "personal"}
                 )
+                r = self.client.post("/login/", {**datos, "password": CLAVE}, secure=True)
                 self.assertRedirects(r, destino, fetch_redirect_response=False)
 
     def test_la_pagina_de_destino_abre_sin_error(self):

@@ -37,7 +37,8 @@ CAMPOS_PUBLICOS = {
     "pacientes.Solicitud": {
         "nombre_completo", "telefono", "motivo_consulta", "experiencia_previa", "estado",
     },
-    "pacientes.PerfilPaciente": {"nombre_completo", "telefono", "estado"},
+    # rut_hash es un HMAC con clave del servidor (no es el RUT ni permite recuperarlo).
+    "pacientes.PerfilPaciente": {"nombre_completo", "telefono", "estado", "rut_hash"},
     "pacientes.FichaClinica": set(),
     "seguridad.BitacoraAuditoria": {"accion", "detalles"},
 }

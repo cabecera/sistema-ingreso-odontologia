@@ -16,6 +16,9 @@ from django.contrib.auth.models import Group, User
 
 from administracion.models import Especialidad
 
+# Usuario del personal: corto y sin símbolos. Empieza con letra, así nunca
+# se confunde con un RUT (los pacientes ingresan con RUT, no con usuario).
+PATRON_USUARIO = re.compile(r"^[a-z][a-z0-9_]{3,19}$")
 ROLES = ("Coordinador", "Estudiante", "Super Administrador")
 
 
@@ -34,6 +37,19 @@ class UsuarioNuevoForm(UserCreationForm):
         for nombre, campo in self.fields.items():
             clase = "form-select" if nombre == "rol" else "form-control"
             campo.widget.attrs["class"] = clase
+        self.fields["username"].help_text = (
+            "4 a 20 caracteres: minúsculas, números y guion bajo; empieza con letra."
+        )
+
+    def clean_username(self):
+        username = super().clean_username()
+        if username is None:  # ya hay un error (usuario repetido)
+            return username
+        if not PATRON_USUARIO.match(username):
+            raise forms.ValidationError(
+                "Entre 4 y 20 caracteres: minúsculas, números y guion bajo; debe empezar con una letra."
+            )
+        return username
 
     def save(self, commit=True):
         usuario = super().save(commit=False)
