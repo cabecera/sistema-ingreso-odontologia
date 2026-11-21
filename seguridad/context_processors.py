@@ -8,12 +8,16 @@
 # ============================================
 
 
+from .inicio import pagina_inicio
+
+
 def menu_por_rol(request):
     usuario = request.user
     if not usuario.is_authenticated:
-        return {"menu": {}}
+        return {"menu": {}, "inicio_url": "/"}
     roles = set(usuario.groups.values_list("name", flat=True))
     return {
+        "inicio_url": pagina_inicio(usuario) or "/",
         "menu": {
             "paciente": "Paciente" in roles,
             "coordinacion": usuario.is_superuser or bool(roles & {"Coordinador", "Super Administrador"}),

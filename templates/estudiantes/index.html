@@ -1,13 +1,59 @@
 {% extends "base.html" %}
 {% block title %}Panel del estudiante{% endblock %}
 {% block content %}
-<div class="page-narrow">
-  <h1 class="mb-4">Panel del estudiante</h1>
-  <div class="list-group">
-    <a class="list-group-item list-group-item-action" href="{% url 'estudiantes:mis_pacientes' %}">
-      <strong>Mis pacientes</strong>
-      <div class="small text-secondary">Pacientes derivados a ti: marcar la atención como realizada y completar la ficha.</div>
+<h1 class="mb-4">Panel del estudiante</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'estudiantes:mis_pacientes' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ conteos.por_atender }}</div>
+        <div class="text-secondary">Por atender</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-md-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'estudiantes:mis_pacientes' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ conteos.por_ficha }}</div>
+        <div class="text-secondary">Ficha por completar</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-md-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'estudiantes:mis_pacientes' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ conteos.terminadas }}</div>
+        <div class="text-secondary">Terminadas</div>
+      </div>
     </a>
   </div>
 </div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h5 mb-0">Próximos casos</h2>
+  <a href="{% url 'estudiantes:mis_pacientes' %}">Ver todos mis pacientes</a>
+</div>
+<table class="table table-sm align-middle bg-white border">
+  <thead><tr><th>Paciente</th><th>Especialidad</th><th>Horario</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+    {% for s in proximas %}
+      <tr>
+        <td>{{ s.nombre_completo }}</td>
+        <td>{{ s.especialidad.nombre }}</td>
+        <td>{{ s.fecha_atencion|date:"d/m/Y H:i"|default:"—" }}</td>
+        <td>{{ s.get_estado_display }}</td>
+        <td class="text-end">
+          {% if s.estado == 'REALIZADO' %}
+            <a class="btn btn-sm btn-primary" href="{% url 'estudiantes:completar_ficha' s.pk %}">Completar ficha</a>
+          {% else %}
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'estudiantes:mis_pacientes' %}">Ver</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="text-center text-secondary py-3">No tienes casos pendientes.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}

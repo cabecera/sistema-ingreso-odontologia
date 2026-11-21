@@ -239,4 +239,5 @@ class RevisionRegistrosTests(TestCase):
         self.crear_perfil()
         self.client.force_login(self.coordinador)
         r = self.client.get("/coordinacion/", secure=True)
-        self.assertContains(r, "1 pendiente")
+        self.assertContains(r, "Registros por revisar")
+        self.assertEqual(r.context["registros_pendientes"], 1)

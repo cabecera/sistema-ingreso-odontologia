@@ -18,7 +18,14 @@ def panel_administracion(request):
     """
     Vista de administracion restringida exclusivamente para el rol Super Administrador.
     """
-    return render(request, 'administracion/index.html')
+    User = get_user_model()
+    return render(request, 'administracion/index.html', {
+        'usuarios_activos': User.objects.filter(is_active=True).count(),
+        'usuarios_inactivos': User.objects.filter(is_active=False).count(),
+        'especialidades_activas': Especialidad.objects.filter(activa=True).count(),
+        'registros_pendientes': PerfilPaciente.objects.filter(
+            estado=PerfilPaciente.Estado.PENDIENTE).count(),
+    })
 
 
 # ============================================

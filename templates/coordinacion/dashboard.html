@@ -1,18 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Panel de coordinación{% endblock %}
 {% block content %}
-<div class="page-narrow">
-  <h1 class="mb-4">Panel de coordinación</h1>
-  <div class="list-group">
-    <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:listado_solicitudes' %}">
-      <strong>Solicitudes de atención</strong>
-      <div class="small text-secondary">Revisar, filtrar y derivar solicitudes a estudiantes.</div>
+<h1 class="mb-4">Panel de coordinación</h1>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'coordinacion:lista_registros' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ registros_pendientes }}</div>
+        <div class="text-secondary">Registros por revisar</div>
+      </div>
     </a>
-    <a class="list-group-item list-group-item-action" href="{% url 'coordinacion:lista_registros' %}">
-      <strong>Registros de pacientes</strong>
-      {% if registros_pendientes %}<span class="badge text-bg-warning ms-2">{{ registros_pendientes }} pendiente{{ registros_pendientes|pluralize }}</span>{% endif %}
-      <div class="small text-secondary">Aceptar o rechazar los registros de nuevos pacientes.</div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'coordinacion:listado_solicitudes' %}?estado=PENDIENTE">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ conteos.pendientes }}</div>
+        <div class="text-secondary">Solicitudes por derivar</div>
+      </div>
     </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'coordinacion:listado_solicitudes' %}?estado=DERIVADA">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ conteos.derivadas }}</div>
+        <div class="text-secondary">Derivadas</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{% url 'coordinacion:lista_estudiantes' %}">
+      <div class="card-body">
+        <div class="display-6 fw-semibold">{{ estudiantes_activos }}</div>
+        <div class="text-secondary">Estudiantes activos</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-6">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h5 mb-0">Registros pendientes</h2>
+      <a href="{% url 'coordinacion:lista_registros' %}">Ver todos</a>
+    </div>
+    <table class="table table-sm align-middle bg-white border">
+      <thead><tr><th>Nombre</th><th>Registrado</th><th></th></tr></thead>
+      <tbody>
+        {% for p in ultimos_registros %}
+          <tr>
+            <td>{{ p.nombre_completo }}</td>
+            <td>{{ p.fecha_registro|date:"d/m/Y H:i" }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-primary" href="{% url 'coordinacion:lista_registros' %}">Revisar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-center text-secondary py-3">No hay registros pendientes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h5 mb-0">Solicitudes pendientes</h2>
+      <a href="{% url 'coordinacion:listado_solicitudes' %}">Ver todas</a>
+    </div>
+    <table class="table table-sm align-middle bg-white border">
+      <thead><tr><th>Especialidad</th><th>Ingresada</th><th></th></tr></thead>
+      <tbody>
+        {% for s in proximas_solicitudes %}
+          <tr>
+            <td>{{ s.especialidad.nombre }}</td>
+            <td>{{ s.fecha_creacion|date:"d/m/Y H:i" }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-primary" href="{% url 'coordinacion:listado_solicitudes' %}?estado=PENDIENTE">Derivar</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-center text-secondary py-3">No hay solicitudes pendientes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
