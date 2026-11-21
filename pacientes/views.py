@@ -166,8 +166,8 @@ def _avisar_registro_recibido(correo):
             message=(
                 "Hola,\n\n"
                 "Recibimos tu registro en el sistema de ingreso de la clínica "
-                "odontológica. La coordinación lo revisará y te avisaremos por "
-                "este mismo correo cuando tu cuenta esté aprobada.\n\n"
+                "odontológica. La coordinación lo revisará y, en un plazo de "
+                "48 horas, recibirás un correo con el resultado de la revisión.\n\n"
                 "Si no fuiste tú, puedes ignorar este mensaje."
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
