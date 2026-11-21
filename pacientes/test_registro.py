@@ -97,6 +97,7 @@ class RegistroPacienteTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         correo = mail.outbox[0]
         self.assertEqual(correo.to, [CORREO])
+        self.assertIn("48 horas", correo.body)
         self.assertNotIn(CLAVE, correo.body)
         self.assertNotIn("12345678", correo.body)
 
@@ -195,9 +196,10 @@ class RegistroPacienteTests(TestCase):
             crudo = cursor.fetchone()[0]
         self.assertNotIn("12345678", crudo)
 
-    def test_pagina_enviada_es_publica(self):
+    def test_pagina_enviada_es_publica_y_avisa_el_plazo_de_48_horas(self):
         r = self.client.get("/registro/enviado/", secure=True)
         self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "48 horas")
 
     def test_login_enlaza_al_registro(self):
         r = self.client.get("/login/", secure=True)
