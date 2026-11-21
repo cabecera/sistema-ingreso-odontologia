@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ingreso de pacientes{% endblock %}
+
+{% block content %}
+<div class="page-narrow text-center">
+  <h1 class="h2 mb-3">Ingreso de pacientes</h1>
+  <p class="lead">
+    Para pedir atención odontológica primero debes registrarte. La coordinación
+    revisará tu registro y, una vez aceptado, podrás iniciar sesión y solicitar tu reserva.
+  </p>
+  <div class="d-flex gap-2 justify-content-center mt-4">
+    <a class="btn btn-primary" href="{% url 'pacientes:registro' %}">Registrarme</a>
+    <a class="btn btn-outline-primary" href="{% url 'seguridad:login' %}">Iniciar sesión</a>
+  </div>
+</div>
+{% endblock %}

@@ -37,39 +37,40 @@ def _perfil_del_paciente(user):
 
 
 def nueva_solicitud(request):
-    # AB#83: con sesión de paciente, los datos personales salen del perfil
-    # y la solicitud queda ligada a su cuenta. Sin sesión, sigue siendo
-    # el formulario público de siempre.
+    # Flujo del profesor: solo un paciente con registro ACEPTADO puede pedir
+    # una reserva. Quien no tiene sesión (o no está aceptado) ve la página de
+    # bienvenida con "Iniciar sesión" y "Regístrate"; nunca recibe el formulario,
+    # ni siquiera por POST directo (no hay forma de saltarse la revisión).
     perfil = _perfil_del_paciente(request.user)
-    # El personal (administrador, coordinador, estudiante) no usa el formulario
-    # público: al abrir "/" va directo a su panel. Paciente y anónimo lo ven.
-    if request.method == "GET" and request.user.is_authenticated and perfil is None:
-        inicio = pagina_inicio(request.user)
-        if inicio and not request.user.groups.filter(name="Paciente").exists():
-            return redirect(inicio)
+    if perfil is None:
+        # El personal (administrador, coordinador, estudiante) va a su panel.
+        if request.user.is_authenticated:
+            inicio = pagina_inicio(request.user)
+            if inicio and not request.user.groups.filter(name="Paciente").exists():
+                return redirect(inicio)
+        if request.method == "POST":
+            return redirect("seguridad:login")
+        return render(request, "pacientes/inicio_publico.html")
     if request.method == "POST":
         form = SolicitudForm(request.POST, perfil=perfil)
         if form.is_valid():
             solicitud = form.save(commit=False)
-            if perfil is not None:
-                solicitud.paciente = request.user
-                solicitud.nombre_completo = perfil.nombre_completo
-                solicitud.fecha_nacimiento = perfil.fecha_nacimiento
-                solicitud.rut = perfil.rut
-                solicitud.telefono = perfil.telefono
+            # Los datos personales salen siempre del perfil aceptado, nunca del POST.
+            solicitud.paciente = request.user
+            solicitud.nombre_completo = perfil.nombre_completo
+            solicitud.fecha_nacimiento = perfil.fecha_nacimiento
+            solicitud.rut = perfil.rut
+            solicitud.telefono = perfil.telefono
             # save() normaliza el RUT (ver Solicitud.save).
             solicitud.save()
+            BitacoraAuditoria.objects.create(
+                usuario=request.user,
+                accion="Solicitud ingresada por paciente",
+                detalles=f"Solicitud #{solicitud.pk}.",
+            )
             messages.success(request, "Tu solicitud fue ingresada correctamente.")
-            if perfil is not None:
-                BitacoraAuditoria.objects.create(
-                    usuario=request.user,
-                    accion="Solicitud ingresada por paciente",
-                    detalles=f"Solicitud #{solicitud.pk}.",
-                )
-                return redirect("pacientes:mis_solicitudes")
-            # Redirigir después del POST evita que al recargar la
-            # página se envíe la solicitud dos veces.
-            return redirect("pacientes:solicitud_enviada")
+            # Redirigir después del POST evita reenviar al recargar.
+            return redirect("pacientes:mis_solicitudes")
     else:
         form = SolicitudForm(perfil=perfil)
     return render(
@@ -93,9 +94,6 @@ def mis_solicitudes(request):
     )
     return render(request, "pacientes/mis_solicitudes.html", {"solicitudes": solicitudes})
 
-
-def solicitud_enviada(request):
-    return render(request, "pacientes/solicitud_enviada.html")
 
 # ===============================================
 # Task 51: Verificar que no vea pacientes ajenos

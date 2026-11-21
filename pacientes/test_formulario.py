@@ -136,18 +136,19 @@ class SolicitudVistaPublicaTests(TestCase):
         base.update(cambios)
         return base
 
-    def test_post_valido_crea_la_solicitud(self):
+    def test_post_anonimo_no_crea_nada_y_lleva_al_login(self):
+        # Sin registro aceptado no se puede reservar (flujo del profesor).
         antes = Solicitud.objects.count()
         response = self.client.post("/", self.datos(), secure=True)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(Solicitud.objects.count(), antes + 1)
+        self.assertRedirects(response, "/login/", fetch_redirect_response=False)
+        self.assertEqual(Solicitud.objects.count(), antes)
 
-    def test_post_con_nombre_invalido_no_crea_nada(self):
+    def test_post_anonimo_con_datos_invalidos_tampoco_crea_nada(self):
         antes = Solicitud.objects.count()
         response = self.client.post(
             "/", self.datos(nombre_completo="<b>Ana</b> 123"), secure=True
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         self.assertEqual(Solicitud.objects.count(), antes)
 
 

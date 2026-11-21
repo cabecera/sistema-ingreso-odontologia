@@ -146,13 +146,31 @@ class ReservaPacienteTests(TestCase):
         for dato in ("pac.a", "maría", "pérez", "12345678", "dolor"):
             self.assertNotIn(dato, texto)
 
-    def test_el_formulario_publico_sigue_funcionando_sin_cuenta(self):
+    def test_el_anonimo_no_puede_reservar_sin_registro_aceptado(self):
+        # Flujo del profesor: primero registro, revisión y aceptación.
         r = self.client.post("/", {
             **self.datos(), "nombre_completo": "Juan Anónimo", "fecha_nacimiento": "1985-05-05",
             "rut": "12.345.678-5", "telefono": "+56 9 8765 4321",
         }, secure=True)
-        self.assertRedirects(r, "/solicitud/enviada/", fetch_redirect_response=False)
-        self.assertIsNone(Solicitud.objects.get().paciente)
+        self.assertRedirects(r, "/login/", fetch_redirect_response=False)
+        self.assertEqual(Solicitud.objects.count(), 0)
+
+    def test_el_anonimo_ve_bienvenida_con_registro_y_login_no_el_formulario(self):
+        r = self.client.get("/", secure=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "/registro/")
+        self.assertContains(r, "/login/")
+        self.assertNotContains(r, 'name="motivo_consulta"')
+
+    def test_paciente_con_registro_pendiente_o_rechazado_no_puede_reservar(self):
+        for estado in ("PENDIENTE", "RECHAZADO"):
+            usuario = self.crear_paciente(f"{estado.lower()}@example.com", "Sin Aceptar", "22222222-2",
+                                          estado=estado)
+            self.client.force_login(usuario)
+            with self.subTest(estado=estado):
+                r = self.reservar()
+                self.assertEqual(r.status_code, 302)
+                self.assertEqual(Solicitud.objects.count(), 0)
 
     # ---------- Mis solicitudes ----------
     def test_mis_solicitudes_exige_sesion_y_rol_paciente(self):

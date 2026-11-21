@@ -55,20 +55,36 @@ class InyeccionFormularioPublicoTests(TestCase):
         return base
 
     def test_campos_estructurados_rechazan_payloads_sql(self):
-        # Nombre, RUT y teléfono tienen formato propio: el payload se rechaza.
+        # Nombre, RUT y teléfono (hoy se piden en el registro) tienen formato
+        # propio: el formulario rechaza el payload.
+        from pacientes.forms import SolicitudForm
         for campo in ("nombre_completo", "rut", "telefono"):
             for payload in PAYLOADS_SQL:
                 with self.subTest(campo=campo, payload=payload):
-                    antes = Solicitud.objects.count()
-                    respuesta = self.client.post(
-                        "/", self.datos(**{campo: payload}), secure=True
-                    )
-                    self.assertEqual(respuesta.status_code, 200)
-                    self.assertEqual(Solicitud.objects.count(), antes)
+                    form = SolicitudForm(self.datos(**{campo: payload}))
+                    self.assertFalse(form.is_valid())
+                    self.assertIn(campo, form.errors)
+
+    def test_anonimo_no_puede_enviar_nada_por_post(self):
+        antes = Solicitud.objects.count()
+        respuesta = self.client.post(
+            "/", self.datos(motivo_consulta="'; DROP TABLE x; --"), secure=True
+        )
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(Solicitud.objects.count(), antes)
 
     def test_texto_libre_con_sql_se_guarda_como_dato_inofensivo(self):
         # El motivo es texto libre: se acepta, pero se guarda LITERAL
         # (consulta parametrizada) y no se ejecuta nada.
+        from pacientes.models import PerfilPaciente
+        grupo = Group.objects.get_or_create(name="Paciente")[0]
+        usuario = User.objects.create_user("inyec@example.com", password="Clave-Segura#2026x")
+        usuario.groups.add(grupo)
+        PerfilPaciente.objects.create(
+            usuario=usuario, nombre_completo="Ana Torres", fecha_nacimiento=date(1990, 1, 1),
+            rut="12345678-5", telefono="+56 9 1234 5678", estado="ACEPTADO",
+        )
+        self.client.force_login(usuario)
         payload = "'; DROP TABLE pacientes_solicitud; -- dolor fuerte"
         antes = Solicitud.objects.count()
         respuesta = self.client.post(
