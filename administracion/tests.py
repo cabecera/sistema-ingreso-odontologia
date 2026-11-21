@@ -219,6 +219,19 @@ class GestionEspecialidadesTests(TestCase):
             "administracion:especialidad_cambiar_estado", args=[cls.esp.pk]
         )
 
+    def _como_paciente_aceptado(self):
+        """GET "/" con sesión de un paciente aceptado (único que ve el formulario)."""
+        from pacientes.models import PerfilPaciente
+        usuario, creado = User.objects.get_or_create(username="pac_esp@example.com")
+        if creado:
+            usuario.groups.add(Group.objects.get_or_create(name="Paciente")[0])
+            PerfilPaciente.objects.create(
+                usuario=usuario, nombre_completo="Paciente Espe", fecha_nacimiento=date(1990, 1, 1),
+                rut="12345678-5", telefono="+56 9 1234 5678", estado="ACEPTADO",
+            )
+        self.client.force_login(usuario)
+        return self.client.get("/", secure=True)
+
     def _post(self, url, datos=None, usuario=None):
         self.client.force_login(usuario or self.admin)
         return self.client.post(url, datos or {}, secure=True)
@@ -306,15 +319,13 @@ class GestionEspecialidadesTests(TestCase):
         self._post(self.url_estado)
         self.esp.refresh_from_db()
         self.assertFalse(self.esp.activa)
-        self.client.logout()  # el formulario público lo ve un anónimo; el personal va a su panel
-        publico = self.client.get("/", secure=True)
+        publico = self._como_paciente_aceptado()  # el formulario lo ve solo un paciente aceptado
         self.assertNotContains(publico, "Zzz Prueba Uno")
         self.client.force_login(self.admin)
         self._post(self.url_estado)
         self.esp.refresh_from_db()
         self.assertTrue(self.esp.activa)
-        self.client.logout()
-        self.assertContains(self.client.get("/", secure=True), "Zzz Prueba Uno")
+        self.assertContains(self._como_paciente_aceptado(), "Zzz Prueba Uno")
         self.assertEqual(
             list(BitacoraAuditoria.objects.order_by("pk").values_list("accion", flat=True)),
             ["Desactivación de especialidad", "Activación de especialidad"],

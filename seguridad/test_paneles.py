@@ -169,18 +169,20 @@ class PanelesPorRolTests(TestCase):
                 r = self.ver(usuario, "/")
                 self.assertRedirects(r, destino, fetch_redirect_response=False)
 
-    def test_paciente_y_anonimo_si_ven_el_formulario_en_el_inicio(self):
-        self.assertEqual(self.ver(self.paciente, "/").status_code, 200)
+    def test_paciente_aceptado_ve_el_formulario_y_el_anonimo_la_bienvenida(self):
+        r = self.ver(self.paciente, "/")
+        self.assertContains(r, "Solicitud de atención odontológica")
         self.client.logout()
         r = self.client.get("/", secure=True)
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Solicitud de atención odontológica")
+        self.assertContains(r, "Ingreso de pacientes")
+        self.assertNotContains(r, "Solicitud de atención odontológica")
 
-    def test_un_usuario_sin_rol_sigue_viendo_el_formulario(self):
+    def test_un_usuario_sin_rol_ve_la_bienvenida(self):
         sin_rol = User.objects.create_user("pan_sin_rol", password=CLAVE)
-        self.assertEqual(self.ver(sin_rol, "/").status_code, 200)
+        self.assertContains(self.ver(sin_rol, "/"), "Ingreso de pacientes")
 
-    def test_el_anonimo_puede_enviar_el_formulario_publico(self):
+    def test_el_anonimo_no_puede_enviar_el_formulario(self):
         self.client.logout()
         r = self.client.post("/", {
             "nombre_completo": "Juan Anónimo", "fecha_nacimiento": "1985-05-05", "rut": "12.345.678-5",
@@ -188,4 +190,5 @@ class PanelesPorRolTests(TestCase):
             "motivo_consulta": "Dolor de muelas hace una semana",
             "experiencia_previa": "", "antecedentes_personales": "", "antecedentes_familiares": "",
         }, secure=True)
-        self.assertRedirects(r, "/solicitud/enviada/", fetch_redirect_response=False)
+        self.assertRedirects(r, "/login/", fetch_redirect_response=False)
+        self.assertEqual(Solicitud.objects.count(), 0)

@@ -10,7 +10,6 @@ app_name = "pacientes"
 urlpatterns = [
     # La página de inicio es el formulario: es lo que ve el paciente.
     path("", views.nueva_solicitud, name="nueva_solicitud"),
-    path("solicitud/enviada/", views.solicitud_enviada, name="solicitud_enviada"),
     path("mis-solicitudes/", views.mis_solicitudes, name="mis_solicitudes"),
     path("registro/", views.registro_paciente, name="registro"),
     path("registro/enviado/", views.registro_enviado, name="registro_enviado"),
