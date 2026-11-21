@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Mis solicitudes{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h2 mb-0">Mis solicitudes</h1>
+    <a class="btn btn-primary" href="{% url 'pacientes:nueva_solicitud' %}">Nueva solicitud</a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table align-middle bg-white border">
+      <thead>
+        <tr>
+          <th>N°</th>
+          <th>Especialidad</th>
+          <th>Ingresada</th>
+          <th>Estado</th>
+          <th>Fecha y hora de atención</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in solicitudes %}
+          <tr>
+            <td>{{ s.pk }}</td>
+            <td>{{ s.especialidad.nombre }}</td>
+            <td>{{ s.fecha_creacion|date:"d/m/Y H:i" }}</td>
+            <td>
+              {{ s.get_estado_display }}
+              {% if s.ficha %}<div class="small text-secondary">Especialidad indicada: {{ s.ficha.especialidad_requerida.nombre }}</div>{% endif %}
+            </td>
+            <td>{% if s.fecha_atencion %}{{ s.fecha_atencion|date:"d/m/Y H:i" }}{% else %}<span class="text-secondary">Por definir</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-secondary py-4">Aún no tienes solicitudes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

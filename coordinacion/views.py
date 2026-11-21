@@ -350,3 +350,23 @@ def aceptar_registro(request, pk):
 @require_POST
 def rechazar_registro(request, pk):
     return _revisar_registro(request, pk, aceptar=False)
+
+
+# ============================================
+# AB#87 (REQ-18): el Coordinador ve el reporte de una atención terminada
+# Solo lectura. Solo solicitudes TERMINADO (las demás no tienen ficha).
+# ============================================
+@role_required('Super Administrador', 'Coordinador')
+def reporte_solicitud(request, pk):
+    solicitud = get_object_or_404(
+        Solicitud.objects.select_related(
+            'especialidad', 'estudiante_asignado', 'ficha__especialidad_requerida'
+        ),
+        pk=pk,
+        estado=Solicitud.Estado.TERMINADO,
+    )
+    return render(request, 'estudiantes/reporte.html', {
+        'solicitud': solicitud,
+        'ficha': solicitud.ficha,
+        'volver_url': reverse('coordinacion:listado_solicitudes'),
+    })

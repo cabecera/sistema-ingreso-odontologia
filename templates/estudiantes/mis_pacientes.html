@@ -42,6 +42,10 @@
                   {% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-primary">Marcar como realizada</button>
                 </form>
+              {% elif solicitud.estado == 'REALIZADO' %}
+                <a class="btn btn-sm btn-primary" href="{% url 'estudiantes:completar_ficha' solicitud.pk %}">Completar ficha</a>
+              {% elif solicitud.estado == 'TERMINADO' %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'estudiantes:ver_reporte' solicitud.pk %}">Ver reporte</a>
               {% else %}
                 <span class="text-secondary small">—</span>
               {% endif %}

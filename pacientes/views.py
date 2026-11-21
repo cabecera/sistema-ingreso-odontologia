@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
+from seguridad.decorators import role_required
 from seguridad.models import BitacoraAuditoria
 
 from .models import PerfilPaciente, Solicitud
@@ -24,19 +25,66 @@ from .forms import RegistroPacienteForm, SolicitudForm
 logger = logging.getLogger(__name__)
 
 
+def _perfil_del_paciente(user):
+    """Perfil ACEPTADO del usuario con sesión, o None (anónimo o personal)."""
+    if not user.is_authenticated:
+        return None
+    perfil = getattr(user, "perfil_paciente", None)
+    if perfil is not None and perfil.estado == PerfilPaciente.Estado.ACEPTADO:
+        return perfil
+    return None
+
+
 def nueva_solicitud(request):
+    # AB#83: con sesión de paciente, los datos personales salen del perfil
+    # y la solicitud queda ligada a su cuenta. Sin sesión, sigue siendo
+    # el formulario público de siempre.
+    perfil = _perfil_del_paciente(request.user)
     if request.method == "POST":
-        form = SolicitudForm(request.POST)
+        form = SolicitudForm(request.POST, perfil=perfil)
         if form.is_valid():
+            solicitud = form.save(commit=False)
+            if perfil is not None:
+                solicitud.paciente = request.user
+                solicitud.nombre_completo = perfil.nombre_completo
+                solicitud.fecha_nacimiento = perfil.fecha_nacimiento
+                solicitud.rut = perfil.rut
+                solicitud.telefono = perfil.telefono
             # save() normaliza el RUT (ver Solicitud.save).
-            form.save()
+            solicitud.save()
             messages.success(request, "Tu solicitud fue ingresada correctamente.")
+            if perfil is not None:
+                BitacoraAuditoria.objects.create(
+                    usuario=request.user,
+                    accion="Solicitud ingresada por paciente",
+                    detalles=f"Solicitud #{solicitud.pk}.",
+                )
+                return redirect("pacientes:mis_solicitudes")
             # Redirigir después del POST evita que al recargar la
             # página se envíe la solicitud dos veces.
             return redirect("pacientes:solicitud_enviada")
     else:
-        form = SolicitudForm()
-    return render(request, "pacientes/nueva_solicitud.html", {"form": form})
+        form = SolicitudForm(perfil=perfil)
+    return render(
+        request, "pacientes/nueva_solicitud.html", {"form": form, "perfil": perfil}
+    )
+
+
+# ============================================
+# AB#83 (REQ-17): "Mis solicitudes" del paciente
+# --------------------------------------------
+# Solo el rol Paciente. Se filtra por la cuenta de la sesión (nunca por
+# un id de la URL), así un paciente jamás ve solicitudes ajenas.
+# No se muestran datos del estudiante ni antecedentes de salud.
+# ============================================
+@role_required("Paciente")
+def mis_solicitudes(request):
+    solicitudes = (
+        Solicitud.objects.filter(paciente=request.user)
+        .select_related("especialidad", "ficha__especialidad_requerida")
+        .order_by("-fecha_creacion")
+    )
+    return render(request, "pacientes/mis_solicitudes.html", {"solicitudes": solicitudes})
 
 
 def solicitud_enviada(request):

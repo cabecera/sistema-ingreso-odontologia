@@ -1,9 +1,12 @@
 from django.contrib import messages
 from django.db import transaction
 from django.http import HttpResponseNotAllowed
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
-from pacientes.models import Solicitud
+
+from .forms import FichaClinicaForm
+from pacientes.models import FichaClinica, Solicitud
 from seguridad.decorators import role_required
 from seguridad.models import BitacoraAuditoria
 
@@ -72,3 +75,74 @@ def marcar_realizada(request, pk):
 
     messages.success(request, "Atención marcada como realizada.")
     return redirect('estudiantes:mis_pacientes')
+
+
+# ============================================
+# AB#87 / REQ-18: ficha clínica, examen previo y reporte
+# --------------------------------------------
+# Solo el estudiante asignado (si no, 404: anti-IDOR). Solo cuando la
+# atención ya está REALIZADA. Al guardar, la solicitud pasa a TERMINADO
+# en la misma transacción y la ficha ya no se puede cambiar. La bitácora
+# guarda solo el número de solicitud, nunca contenido clínico.
+# ============================================
+@role_required('Estudiante')
+def completar_ficha(request, pk):
+    solicitud = get_object_or_404(Solicitud, pk=pk, estudiante_asignado=request.user)
+
+    if solicitud.estado == Solicitud.Estado.TERMINADO:
+        return redirect('estudiantes:ver_reporte', pk=solicitud.pk)
+    if solicitud.estado != Solicitud.Estado.REALIZADO:
+        messages.error(request, "Primero marca la atención como realizada.")
+        return redirect('estudiantes:mis_pacientes')
+
+    if request.method == 'POST':
+        form = FichaClinicaForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                # Se vuelve a leer con bloqueo: dos envíos a la vez no
+                # pueden crear dos fichas ni terminar la solicitud dos veces.
+                solicitud = get_object_or_404(
+                    Solicitud.objects.select_for_update(),
+                    pk=pk,
+                    estudiante_asignado=request.user,
+                )
+                if not solicitud.puede_pasar_a(Solicitud.Estado.TERMINADO):
+                    messages.error(request, "Esta ficha ya fue completada.")
+                    return redirect('estudiantes:mis_pacientes')
+
+                ficha = form.save(commit=False)
+                ficha.solicitud = solicitud
+                ficha.estudiante = request.user
+                ficha.save()
+                solicitud.estado = Solicitud.Estado.TERMINADO
+                solicitud.save(update_fields=['estado'])
+                BitacoraAuditoria.objects.create(
+                    usuario=request.user,
+                    accion="Ficha clínica completada",
+                    detalles=f"Solicitud #{solicitud.pk} marcada como TERMINADO.",
+                )
+            messages.success(request, "Ficha guardada: la atención quedó terminada.")
+            return redirect('estudiantes:ver_reporte', pk=solicitud.pk)
+    else:
+        form = FichaClinicaForm()
+
+    return render(
+        request,
+        'estudiantes/ficha_form.html',
+        {'form': form, 'solicitud': solicitud},
+    )
+
+
+@role_required('Estudiante')
+def ver_reporte(request, pk):
+    solicitud = get_object_or_404(
+        Solicitud.objects.select_related('especialidad', 'ficha__especialidad_requerida'),
+        pk=pk,
+        estudiante_asignado=request.user,
+        estado=Solicitud.Estado.TERMINADO,
+    )
+    return render(request, 'estudiantes/reporte.html', {
+        'solicitud': solicitud,
+        'ficha': solicitud.ficha,
+        'volver_url': reverse('estudiantes:mis_pacientes'),
+    })
