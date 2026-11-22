@@ -30,10 +30,11 @@ CLAVE_LOGIN_MAXIMO = 128
 MAX_INTENTOS = 5
 BLOQUEO_SEGUNDOS = 600
 # Además del bloqueo por IP + identificador (5 fallos), hay dos topes más altos:
-# - por identificador desde cualquier IP: frena la adivinanza repartida entre
-#   muchas IP, sin que unos pocos intentos ajenos puedan dejar fuera a un usuario;
+# - por identificador desde cualquier IP (10 fallos en 10 minutos): frena la
+#   adivinanza aunque la IP no se pueda determinar o se reparta entre muchas;
+#   el bloqueo dura solo 10 minutos;
 # - por IP con cualquier identificador: frena probar muchas cuentas desde una IP.
-MAX_INTENTOS_IDENTIFICADOR = 30
+MAX_INTENTOS_IDENTIFICADOR = 10
 MAX_INTENTOS_IP = 40
 # Usuario inexistente: Django igual calcula un hash falso y así la respuesta
 # tarda lo mismo que con un usuario real.

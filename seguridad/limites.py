@@ -13,6 +13,7 @@
 # y números). Cada worker de gunicorn tiene el suyo, por eso los topes son generosos.
 # ============================================
 import hashlib
+import ipaddress
 
 from django.conf import settings
 from django.core.cache import cache, caches
@@ -28,16 +29,31 @@ PAGINA_429 = (
 )
 
 
-def ip_cliente(request):
-    """IP del cliente detrás del proxy de Render.
+def _ip_valida(texto):
+    try:
+        return str(ipaddress.ip_address((texto or "").strip()))
+    except ValueError:
+        return None
 
-    X-Forwarded-For lo arma el proxy agregando cada salto al final; lo que
-    escribe el cliente queda al principio y es falsificable. Por eso se toma la
-    entrada contando desde el final según LIMITES_SALTOS_PROXY."""
+
+def ip_cliente(request):
+    """IP del cliente detrás de los proxies de Render.
+
+    1) Cf-Connecting-IP / True-Client-IP: la fija el CDN (Cloudflare) con la IP
+       que se conectó a él; el cliente no puede falsificarla porque el CDN la
+       sobrescribe.
+    2) X-Forwarded-For contando desde el final según LIMITES_SALTOS_PROXY: cada
+       proxy agrega un salto al final y lo que escribe el cliente queda al
+       principio (falsificable), por eso nunca se toma el primero."""
+    if getattr(settings, "LIMITES_CONFIAR_CDN", True):
+        for cabecera in ("HTTP_CF_CONNECTING_IP", "HTTP_TRUE_CLIENT_IP"):
+            valida = _ip_valida(request.META.get(cabecera))
+            if valida:
+                return valida
     cadena = [p.strip() for p in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",") if p.strip()]
     saltos = max(1, int(getattr(settings, "LIMITES_SALTOS_PROXY", 1)))
     if cadena:
-        return cadena[-saltos] if len(cadena) >= saltos else cadena[0]
+        return _ip_valida(cadena[-saltos] if len(cadena) >= saltos else cadena[0]) or "desconocida"
     return request.META.get("REMOTE_ADDR", "desconocida")
 
 
@@ -97,5 +113,16 @@ class LimiteDePeticionesMiddleware:
             if contar(_clave(nombre, ip), ventana) > tope:
                 respuesta = HttpResponse(PAGINA_429, status=429, content_type="text/html; charset=utf-8")
                 respuesta["Retry-After"] = str(ventana if ventana <= 60 else 600)
-                return respuesta
-        return self.get_response(request)
+                return self._diagnostico(request, respuesta, ip)
+        return self._diagnostico(request, self.get_response(request), ip)
+
+    @staticmethod
+    def _diagnostico(request, respuesta, ip):
+        # Apagado por defecto. Con DIAGNOSTICO_IP=1 muestra qué IP detectó la app,
+        # para ajustar LIMITES_SALTOS_PROXY en Render. Solo devuelve datos de la
+        # propia conexión de quien pregunta.
+        if getattr(settings, "DIAGNOSTICO_IP", False):
+            respuesta["X-Diag-Ip"] = ip
+            respuesta["X-Diag-Xff"] = request.META.get("HTTP_X_FORWARDED_FOR", "")[:200]
+            respuesta["X-Diag-Cf"] = request.META.get("HTTP_CF_CONNECTING_IP", "")[:64]
+        return respuesta
