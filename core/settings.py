@@ -328,7 +328,9 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='no-responder@odontologia
 # LIMITES_SALTOS_PROXY: cuántos proxies hay delante de Gunicorn (Render + su CDN).
 # ============================================
 LIMITES_ACTIVOS = env.bool('LIMITES_ACTIVOS', default='test' not in sys.argv)
-LIMITES_SALTOS_PROXY = env.int('LIMITES_SALTOS_PROXY', default=2)
+LIMITES_SALTOS_PROXY = env.int('LIMITES_SALTOS_PROXY', default=3)
+LIMITES_CONFIAR_CDN = env.bool('LIMITES_CONFIAR_CDN', default=True)
+DIAGNOSTICO_IP = env.bool('DIAGNOSTICO_IP', default=False)
 LIMITE_GENERAL_POR_MINUTO = 240
 LIMITE_POST_POR_MINUTO = 40
 LIMITE_LOGIN_POR_MINUTO = 20

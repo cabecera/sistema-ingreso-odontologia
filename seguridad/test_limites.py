@@ -67,11 +67,11 @@ class LimitesPorIpTests(TestCase):
 
     def test_ip_cliente_cuenta_los_saltos_desde_el_final(self):
         from django.test import RequestFactory
-        r = RequestFactory().get("/", HTTP_X_FORWARDED_FOR="falsa, real, cdn")
+        r = RequestFactory().get("/", HTTP_X_FORWARDED_FOR="1.1.1.1, 2.2.2.2, 3.3.3.3")
         with override_settings(LIMITES_SALTOS_PROXY=2):
-            self.assertEqual(ip_cliente(r), "real")
+            self.assertEqual(ip_cliente(r), "2.2.2.2")
         with override_settings(LIMITES_SALTOS_PROXY=1):
-            self.assertEqual(ip_cliente(r), "cdn")
+            self.assertEqual(ip_cliente(r), "3.3.3.3")
         sin = RequestFactory().get("/", REMOTE_ADDR="7.7.7.7")
         self.assertEqual(ip_cliente(sin), "7.7.7.7")
 
@@ -149,3 +149,30 @@ class BloqueoCompartidoEntreProcesosTests(TestCase):
     def test_los_contadores_estan_en_la_base_de_datos(self):
         from django.conf import settings
         self.assertIn("DatabaseCache", settings.CACHES["bloqueos"]["BACKEND"])
+
+
+class IpRealTests(TestCase):
+    def test_usa_la_ip_del_cdn_aunque_la_cadena_de_proxies_cambie(self):
+        from django.test import RequestFactory
+        f = RequestFactory()
+        a = f.get("/", HTTP_CF_CONNECTING_IP="190.5.48.149", HTTP_X_FORWARDED_FOR="9.9.9.9, 172.70.1.1, 10.0.0.1")
+        b = f.get("/", HTTP_CF_CONNECTING_IP="190.5.48.149", HTTP_X_FORWARDED_FOR="9.9.9.9, 162.158.2.2, 10.0.0.2")
+        self.assertEqual(ip_cliente(a), "190.5.48.149")
+        self.assertEqual(ip_cliente(a), ip_cliente(b))
+
+    def test_sin_cdn_cuenta_desde_el_final_y_valida_el_formato(self):
+        from django.test import RequestFactory
+        f = RequestFactory()
+        r = f.get("/", HTTP_X_FORWARDED_FOR="falsa, 190.5.48.149, 172.70.1.1, 10.0.0.1")
+        with override_settings(LIMITES_SALTOS_PROXY=3):
+            self.assertEqual(ip_cliente(r), "190.5.48.149")
+        basura = f.get("/", HTTP_CF_CONNECTING_IP="no-es-ip", REMOTE_ADDR="7.7.7.7")
+        self.assertEqual(ip_cliente(basura), "7.7.7.7")
+
+    @override_settings(LIMITES_ACTIVOS=True, LIMITE_GENERAL_POR_MINUTO=1000)
+    def test_el_diagnostico_esta_apagado_por_defecto_y_se_puede_encender(self):
+        r = self.client.get("/login/", secure=True, HTTP_CF_CONNECTING_IP="1.2.3.4")
+        self.assertNotIn("X-Diag-Ip", r)
+        with override_settings(DIAGNOSTICO_IP=True):
+            r = self.client.get("/login/", secure=True, HTTP_CF_CONNECTING_IP="1.2.3.4")
+        self.assertEqual(r["X-Diag-Ip"], "1.2.3.4")
