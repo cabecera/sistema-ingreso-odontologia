@@ -14,7 +14,7 @@
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous">
 
-  <style>
+  <style nonce="{{ csp_nonce }}">
     :root {
       --ink: #14303b;          /* azul petróleo: navbar y títulos */
       --clinic: #1a6b7b;       /* verde azulado: acciones principales */
@@ -73,6 +73,7 @@
       background: #fff; color: var(--ink); padding: .5rem 1rem;
     }
     .skip-link:focus { left: .5rem; top: .5rem; }
+    .texto-lineas { white-space: pre-line; }  /* respeta los saltos de línea del texto */
   </style>
 
   {% block extra_head %}{% endblock %}

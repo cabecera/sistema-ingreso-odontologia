@@ -25,3 +25,8 @@ def menu_por_rol(request):
             "administracion": usuario.is_superuser or "Super Administrador" in roles,
         }
     }
+
+
+def csp(request):
+    """Nonce de la política de seguridad de contenido (lo usa el <style> de base.html)."""
+    return {"csp_nonce": getattr(request, "csp_nonce", "")}

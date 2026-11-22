@@ -36,15 +36,15 @@
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body p-4">
       <h2 class="h5">Examen previo</h2>
-      <p class="mb-4" style="white-space: pre-line">{{ ficha.examen_previo }}</p>
+      <p class="mb-4 texto-lineas">{{ ficha.examen_previo }}</p>
       {% if ficha.observaciones %}
         <h2 class="h5">Observaciones</h2>
-        <p class="mb-4" style="white-space: pre-line">{{ ficha.observaciones }}</p>
+        <p class="mb-4 texto-lineas">{{ ficha.observaciones }}</p>
       {% endif %}
       <h2 class="h5">Especialidad que necesita el paciente</h2>
       <p class="mb-4">{{ ficha.especialidad_requerida.nombre }}</p>
       <h2 class="h5">Reporte</h2>
-      <p class="mb-0" style="white-space: pre-line">{{ ficha.reporte }}</p>
+      <p class="mb-0 texto-lineas">{{ ficha.reporte }}</p>
     </div>
   </div>
 </div>
