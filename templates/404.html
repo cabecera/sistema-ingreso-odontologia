@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Página no encontrada{% endblock %}
+{% block content %}
+<div class="page-narrow text-center py-4">
+  <p class="display-1 fw-bold text-secondary mb-0" aria-hidden="true">404</p>
+  <h1 class="mb-3">Página no encontrada</h1>
+  <p class="text-secondary mb-4">
+    La página que buscas no existe o fue movida. Revisa la dirección o vuelve al inicio.
+  </p>
+  <a class="btn btn-primary" href="{{ inicio_url|default:'/' }}">Volver al inicio</a>
+</div>
+{% endblock %}

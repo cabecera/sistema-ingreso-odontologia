@@ -88,6 +88,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Primero: pone CSP y Permissions-Policy en todas las respuestas (también
+    # los archivos estáticos) y bloquea TRACE/TRACK.
+    'seguridad.middleware.CabecerasSeguridadMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # ============================================
     # AB#45 AB#46: WhiteNoise sirve STATIC_ROOT
@@ -115,6 +118,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'seguridad.context_processors.csp',
                 'seguridad.context_processors.menu_por_rol',
             ],
         },
@@ -277,6 +281,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
+    # HSTS: el navegador solo usará HTTPS con este sitio durante un año.
+    # Sin includeSubDomains ni preload: el dominio onrender.com no es nuestro.
+    SECURE_HSTS_SECONDS = 31536000
     CSRF_COOKIE_SECURE = True
 
 
