@@ -63,17 +63,18 @@ LIMITES_TEXTO = {
 }
 
 
-def normalizar_nombre(valor):
+def normalizar_nombre(valor, minimo=NOMBRE_LARGO_MINIMO, maximo=NOMBRE_LARGO_MAXIMO):
     """Normaliza espacios y exige solo letras (con tildes y ñ), espacios y guion.
-    Rechaza números, símbolos y etiquetas HTML."""
+    Rechaza números, símbolos y etiquetas HTML. Lo usan todos los formularios
+    que piden nombres de personas (paciente y personal)."""
     nombre = " ".join(valor.split())
-    if len(nombre) < NOMBRE_LARGO_MINIMO:
+    if len(nombre) < minimo:
         raise forms.ValidationError(
-            f"El nombre debe tener al menos {NOMBRE_LARGO_MINIMO} caracteres."
+            f"Debe tener al menos {minimo} caracteres."
         )
-    if len(nombre) > NOMBRE_LARGO_MAXIMO:
+    if len(nombre) > maximo:
         raise forms.ValidationError(
-            f"El nombre no puede tener más de {NOMBRE_LARGO_MAXIMO} caracteres."
+            f"No puede tener más de {maximo} caracteres."
         )
     if not all(ch.isalpha() or ch in CARACTERES_NOMBRE_PERMITIDOS for ch in nombre):
         raise forms.ValidationError(

@@ -16,6 +16,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxLengthValidator
 
 from pacientes.models import PerfilPaciente
 from pacientes.rut_login import hash_rut
@@ -23,6 +24,7 @@ from pacientes.validators import limpiar_rut
 
 PACIENTE = "paciente"
 PERSONAL = "personal"
+CLAVE_LOGIN_MAXIMO = 128
 MAX_INTENTOS = 5
 BLOQUEO_SEGUNDOS = 600
 # Usuario inexistente: Django igual calcula un hash falso y así la respuesta
@@ -48,6 +50,9 @@ class LoginForm(AuthenticationForm):
         campo = self.fields["username"]
         campo.widget.attrs["class"] = "form-control"
         self.fields["password"].widget.attrs["class"] = "form-control"
+        # Tope generoso: evita enviar textos enormes para que el servidor los procese.
+        self.fields["password"].widget.attrs["maxlength"] = str(CLAVE_LOGIN_MAXIMO)
+        self.fields["password"].validators.append(MaxLengthValidator(CLAVE_LOGIN_MAXIMO))
         if self.tipo_actual == PACIENTE:
             campo.label = "RUT"
             campo.max_length = 14
