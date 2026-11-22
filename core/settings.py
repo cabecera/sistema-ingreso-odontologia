@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import sys
 from pathlib import Path
 import environ
 
@@ -98,6 +99,8 @@ MIDDLEWARE = [
     # Debe ir justo después de SecurityMiddleware.
     # ============================================
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Después de WhiteNoise (los estáticos no cuentan): responde 429 si una IP abusa.
+    'seguridad.limites.LimiteDePeticionesMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -159,6 +162,17 @@ else:
     db_ssl_ca = env('DB_SSL_CA', default='')
     if db_ssl_ca:
         DATABASES['default']['OPTIONS'] = {'ssl': {'ca': db_ssl_ca}}
+
+    # Resiliencia (Aiven Free admite pocas conexiones): se reutilizan 60 s, se
+    # comprueba que sigan vivas y ninguna consulta puede colgar el servidor.
+    DATABASES['default']['CONN_MAX_AGE'] = 60
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+    DATABASES['default'].setdefault('OPTIONS', {}).update({
+        'connect_timeout': 10,
+        'read_timeout': 30,
+        'write_timeout': 30,
+        'init_command': 'SET SESSION max_execution_time=20000',
+    })
 
 
 # Password validation
@@ -304,3 +318,31 @@ EMAIL_BACKEND = env(
     ),
 )
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='no-responder@odontologia.local')
+
+
+# ============================================
+# Límites de uso (ver seguridad/limites.py)
+# --------------------------------------------
+# Se apagan solo al correr los tests (cada test hace muchas peticiones desde la
+# misma IP); sus propios tests los activan con override_settings.
+# LIMITES_SALTOS_PROXY: cuántos proxies hay delante de Gunicorn (Render + su CDN).
+# ============================================
+LIMITES_ACTIVOS = env.bool('LIMITES_ACTIVOS', default='test' not in sys.argv)
+LIMITES_SALTOS_PROXY = env.int('LIMITES_SALTOS_PROXY', default=2)
+LIMITE_GENERAL_POR_MINUTO = 240
+LIMITE_POST_POR_MINUTO = 40
+LIMITE_LOGIN_POR_MINUTO = 20
+LIMITE_REGISTRO_POR_HORA = 10
+
+# Tamaño máximo de lo que se acepta en un formulario (no hay subida de archivos).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100
+DATA_UPLOAD_MAX_NUMBER_FILES = 0
+
+# Caché en memoria con tope de entradas, para que no crezca sin límite.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'OPTIONS': {'MAX_ENTRIES': 20000},
+    }
+}

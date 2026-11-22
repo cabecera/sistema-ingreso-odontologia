@@ -26,6 +26,7 @@ import re
 import socket
 import ssl
 import sys
+import time
 import urllib.parse
 import uuid
 from datetime import datetime
@@ -36,6 +37,26 @@ RESULTADOS = []
 
 
 # ---------- cliente HTTP mínimo (sin seguir redirecciones) ----------
+_ULTIMA = {"general": 0.0, "post": 0.0, "login": 0.0}
+# Pausa mínima entre peticiones (segundos): general 240/min, POST 40/min, login 20/min.
+_PAUSAS = (("general", 0.3), ("post", 1.6), ("login", 3.2))
+
+
+def espera(metodo, ruta):
+    ahora = time.monotonic()
+    claves = ["general"] + (["post"] if metodo == "POST" else []) + (["login"] if metodo == "POST" and ruta.startswith("/login") else [])
+    pausa = max(dict(_PAUSAS)[k] - (ahora - _ULTIMA[k]) for k in claves)
+    if pausa > 0:
+        time.sleep(pausa)
+    ahora = time.monotonic()
+    for k in claves:
+        _ULTIMA[k] = ahora
+
+
+def limitada(r):
+    return r.status == 429
+
+
 class Cliente:
     def __init__(self, base):
         u = urllib.parse.urlparse(base)
@@ -54,6 +75,17 @@ class Cliente:
         return http.client.HTTPConnection(self.host, self.puerto, timeout=TIMEOUT)
 
     def pedir(self, metodo, ruta, datos=None, cabeceras=None, cuerpo_crudo=None):
+        # El sitio limita las peticiones por IP (429). El script va a un ritmo que
+        # respeta esos límites; si aun así recibe 429 espera y reintenta una vez
+        # (salvo en el registro, que tiene tope por hora: ahí el 429 es resultado válido).
+        espera(metodo, ruta)
+        r = self._pedir(metodo, ruta, datos, cabeceras, cuerpo_crudo)
+        if r.status == 429 and not ruta.startswith("/registro"):
+            time.sleep(min(int(r.cab("Retry-After") or 60), 65) + 1)
+            r = self._pedir(metodo, ruta, datos, cabeceras, cuerpo_crudo)
+        return r
+
+    def _pedir(self, metodo, ruta, datos=None, cabeceras=None, cuerpo_crudo=None):
         c = self._conexion()
         cab = {"User-Agent": "pruebas-owasp-academico/1.0", "Accept": "text/html"}
         if self.cookies:
@@ -299,7 +331,7 @@ def a05_inyeccion(base):
     c = nuevo(base)
     t = c.token("/registro/")
     campos = ["nombre_completo", "correo", "rut", "telefono", "fecha_nacimiento"]
-    malos = []
+    malos, frenadas, total = [], 0, 0
     for campo in campos:
         for p in sql[:4] + ["<script>alert(1)</script>", "{{7*7}}", "${7*7}", "%s%s%s%s", "../../etc/passwd"]:
             datos = {"csrfmiddlewaretoken": t, "nombre_completo": "Ana Torres", "correo": "ana.prueba@example.com",
@@ -307,10 +339,14 @@ def a05_inyeccion(base):
                      "password1": "x", "password2": "x"}
             datos[campo] = p
             r = c.post("/registro/", datos)
+            total += 1
+            if limitada(r):
+                frenadas += 1
+                continue
             if r.status >= 500 or not sin_fuga(r.cuerpo) or r.status == 302 or "49" in re.sub(r"\d{3,}", "", r.cuerpo.split("<main")[-1])[:0]:
                 malos.append(f"{campo}:{p[:10]}={r.status}")
     registrar("A05", "Inyección SQL/HTML/plantillas en 5 campos del registro", "Rechazadas por validación, sin crear cuentas ni error 500",
-              "Todas rechazadas (formulario con errores)" if not malos else "; ".join(malos[:3]), not malos)
+              (f"Rechazadas por validación ({total - frenadas}); frenadas por el límite de registros 429 ({frenadas})" if frenadas else "Todas rechazadas (formulario con errores)") if not malos else "; ".join(malos[:3]), not malos)
 
     xss = '"><script>alert(document.cookie)</script>'
     c = nuevo(base)
@@ -348,15 +384,15 @@ def a06_diseno(base, ingreso):
     r = c.post("/registro/", {"csrfmiddlewaretoken": t, "nombre_completo": "Ana Torres", "correo": "ana.debil@example.com",
                               "fecha_nacimiento": "1990-01-01", "rut": "12.345.678-5", "telefono": "+56 9 1234 5678",
                               "password1": "123456", "password2": "123456"})
-    registrar("A07", "Registro con contraseña débil '123456'", "Rechazado (sin crear cuenta)", f"HTTP {r.status}, formulario con errores", r.status == 200)
+    registrar("A07", "Registro con contraseña débil '123456'", "Rechazado (sin crear cuenta)", f"HTTP {r.status}, " + ("frenado por el límite de registros" if limitada(r) else "formulario con errores"), r.status in (200, 429))
     r = c.post("/registro/", {"csrfmiddlewaretoken": t, "nombre_completo": "Menor Edad", "correo": "menor@example.com",
                               "fecha_nacimiento": datetime.now().strftime("%Y-%m-%d"), "rut": "12.345.678-5", "telefono": "+56 9 1234 5678",
                               "password1": "Clave-Segura#2026x", "password2": "Clave-Segura#2026x"})
-    registrar("A06", "Registro de menor de 18 años / fecha de hoy", "Rechazado por regla de negocio", f"HTTP {r.status}", r.status == 200)
+    registrar("A06", "Registro de menor de 18 años / fecha de hoy", "Rechazado por regla de negocio", f"HTTP {r.status}", r.status in (200, 429))
     r = c.post("/registro/", {"csrfmiddlewaretoken": t, "nombre_completo": "Ana Torres", "correo": "ana.rutmalo@example.com",
                               "fecha_nacimiento": "1990-01-01", "rut": "12.345.678-9", "telefono": "+56 9 1234 5678",
                               "password1": "Clave-Segura#2026x", "password2": "Clave-Segura#2026x"})
-    registrar("A06", "RUT con dígito verificador falso (módulo 11)", "Rechazado", f"HTTP {r.status}", r.status == 200 and "RUT" in r.cuerpo)
+    registrar("A06", "RUT con dígito verificador falso (módulo 11)", "Rechazado", f"HTTP {r.status}", limitada(r) or (r.status == 200 and "RUT" in r.cuerpo))
 
 
 def a07_autenticacion(base, ingreso):
@@ -456,13 +492,37 @@ def a09_registro(_base):
 GRUPOS = [a03_dependencias, a02_configuracion, a01_control_de_acceso, a05_inyeccion, a08_integridad, a10_excepciones]
 
 
+def a06_limite_de_uso(base):
+    # Ráfaga sin pausas: el servidor debe frenar a la IP con 429 en vez de saturarse.
+    # Va al final porque deja a esta IP frenada durante un minuto.
+    c = nuevo(base)
+    ultimo, vistos_429, cab = None, 0, ""
+    for n in range(1, 501):
+        r = c._pedir("GET", "/login/")
+        ultimo = r.status
+        if r.status == 429:
+            vistos_429 += 1
+            cab = r.cab("Retry-After")
+            break
+        if r.status >= 500:
+            break
+    registrar("A06", "Ráfaga de hasta 500 peticiones seguidas desde una IP (denegación de servicio básica)",
+              "El servidor responde 429 con Retry-After y no cae (sin 5xx)",
+              f"429 en la petición {n}, Retry-After={cab}s" if vistos_429 else f"Sin límite; último HTTP {ultimo}",
+              bool(vistos_429) and bool(cab))
+    time.sleep(2)
+    r = nuevo(base)._pedir("GET", "/login/")
+    registrar("A06", "Tras la ráfaga el sitio sigue respondiendo de forma controlada", "429 (frenado) o 200; nunca 5xx",
+              f"HTTP {r.status}", r.status in (200, 429))
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(2)
     base = sys.argv[1].rstrip("/")
     salida = sys.argv[2] if len(sys.argv) > 2 else "resultados_owasp.md"
-    print(f"Atacando (solo lectura): {base}\n")
+    print(f"Atacando (solo lectura): {base}\nVa a un ritmo que respeta los límites del sitio; tarda unos minutos.\n")
     a03_dependencias(base)
     a02_configuracion(base)
     a01_control_de_acceso(base)
@@ -473,6 +533,7 @@ def main():
     a08_integridad(base)
     a09_registro(base)
     a10_excepciones(base)
+    a06_limite_de_uso(base)
     total = len(RESULTADOS)
     fallas = [r for r in RESULTADOS if r[4] == "FALLA"]
     print(f"\nResumen: {total - len(fallas)}/{total} aprobadas, {len(fallas)} con falla")
