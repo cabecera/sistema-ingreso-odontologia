@@ -14,7 +14,14 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, User
 
+from django.core.validators import MaxLengthValidator
+
 from administracion.models import Especialidad
+from pacientes.forms import (
+    PASSWORD_LARGO_MAXIMO,
+    limpiar_texto,
+    normalizar_nombre,
+)
 
 # Usuario del personal: corto y sin símbolos. Empieza con letra, así nunca
 # se confunde con un RUT (los pacientes ingresan con RUT, no con usuario).
@@ -23,6 +30,11 @@ ROLES = ("Coordinador", "Estudiante", "Super Administrador")
 
 
 class UsuarioNuevoForm(UserCreationForm):
+    # Mismas reglas que el registro del paciente: nombres solo con letras,
+    # espacios y guion; correo con formato válido, máximo 150 y único.
+    first_name = forms.CharField(label="Nombre", max_length=50)
+    last_name = forms.CharField(label="Apellido", max_length=50)
+    email = forms.EmailField(label="Correo electrónico", max_length=150)
     rol = forms.ChoiceField(
         label="Rol",
         choices=[("", "Elegir rol…")] + [(r, r) for r in ROLES],
@@ -40,6 +52,22 @@ class UsuarioNuevoForm(UserCreationForm):
         self.fields["username"].help_text = (
             "4 a 20 caracteres: minúsculas, números y guion bajo; empieza con letra."
         )
+        # Contraseña: máximo 50 (el resto de la política está en AUTH_PASSWORD_VALIDATORS).
+        for nombre in ("password1", "password2"):
+            self.fields[nombre].widget.attrs["maxlength"] = PASSWORD_LARGO_MAXIMO
+            self.fields[nombre].validators.append(MaxLengthValidator(PASSWORD_LARGO_MAXIMO))
+
+    def clean_first_name(self):
+        return normalizar_nombre(self.cleaned_data["first_name"], minimo=2, maximo=50)
+
+    def clean_last_name(self):
+        return normalizar_nombre(self.cleaned_data["last_name"], minimo=2, maximo=50)
+
+    def clean_email(self):
+        correo = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email__iexact=correo).exists():
+            raise forms.ValidationError("Ya existe una cuenta con ese correo.")
+        return correo
 
     def clean_username(self):
         username = super().clean_username()
@@ -75,13 +103,18 @@ class UsuarioNuevoForm(UserCreationForm):
 PATRON_NOMBRE_ESPECIALIDAD = re.compile(r"^[^\W\d_][\w .()\-áéíóúüñÁÉÍÓÚÜÑ]*$", re.UNICODE)
 
 
+DESCRIPCION_MAXIMO = 500
+
+
 class EspecialidadForm(forms.ModelForm):
     class Meta:
         model = Especialidad
         fields = ("nombre", "descripcion", "activa")
         widgets = {
             "nombre": forms.TextInput(attrs={"class": "form-control"}),
-            "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "descripcion": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3, "maxlength": DESCRIPCION_MAXIMO}
+            ),
             "activa": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
@@ -101,4 +134,7 @@ class EspecialidadForm(forms.ModelForm):
         return nombre
 
     def clean_descripcion(self):
-        return " ".join(self.cleaned_data.get("descripcion", "").split())
+        texto = " ".join(limpiar_texto(self.cleaned_data.get("descripcion", "")).split())
+        if len(texto) > DESCRIPCION_MAXIMO:
+            raise forms.ValidationError(f"No puede tener más de {DESCRIPCION_MAXIMO} caracteres.")
+        return texto

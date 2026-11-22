@@ -137,7 +137,7 @@ class UsuarioDelPersonalTests(TestCase):
 
     def form(self, username):
         return UsuarioNuevoForm({
-            "username": username, "first_name": "A", "last_name": "B", "email": "a@example.com",
+            "username": username, "first_name": "Ana", "last_name": "Pérez", "email": "a@example.com",
             "password1": CLAVE, "password2": CLAVE, "rol": "Estudiante",
         })
 
