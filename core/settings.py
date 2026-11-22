@@ -344,5 +344,12 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'OPTIONS': {'MAX_ENTRIES': 20000},
-    }
+    },
+    # Intentos fallidos de login: en la base de datos para que los compartan
+    # todos los procesos de Gunicorn (ver seguridad/limites.py). La tabla se crea
+    # con `manage.py createcachetable` (lo hace entrypoint.sh).
+    'bloqueos': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'cache_bloqueos',
+    },
 }

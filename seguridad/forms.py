@@ -16,14 +16,13 @@ import hashlib
 
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxLengthValidator
 
 from pacientes.models import PerfilPaciente
 from pacientes.rut_login import hash_rut
 from pacientes.validators import limpiar_rut
-from seguridad.limites import contar, ip_cliente, superado
+from seguridad.limites import bloqueos, contar, ip_cliente, superado
 
 PACIENTE = "paciente"
 PERSONAL = "personal"
@@ -112,7 +111,8 @@ class LoginForm(AuthenticationForm):
         if not identificador or not self.cleaned_data.get("password"):
             return self.cleaned_data
         claves = self._claves_bloqueo(identificador)
-        if any(superado(clave, tope) for clave, tope in claves):
+        almacen = bloqueos()
+        if any(superado(clave, tope, almacen) for clave, tope in claves):
             raise ValidationError(
                 "Demasiados intentos fallidos. Espera 10 minutos e inténtalo de nuevo.",
                 code="bloqueado",
@@ -123,7 +123,7 @@ class LoginForm(AuthenticationForm):
             resultado = super().clean()
         except ValidationError:
             for clave, _tope in claves:
-                contar(clave, BLOQUEO_SEGUNDOS)
+                contar(clave, BLOQUEO_SEGUNDOS, almacen)
             raise
-        cache.delete(claves[0][0])  # entrada correcta: se limpia el contador de este par
+        almacen.delete(claves[0][0])  # entrada correcta: se limpia el contador de este par
         return resultado

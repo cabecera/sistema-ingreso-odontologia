@@ -3,6 +3,7 @@ set -e
 
 python manage.py collectstatic --noinput
 python manage.py migrate --noinput
+python manage.py createcachetable
 
 # Agrega esta línea para crear el superusuario automáticamente
 python manage.py createsuperuser --noinput || true

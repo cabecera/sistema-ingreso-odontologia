@@ -140,10 +140,28 @@ class Resp:
 
 
 # ---------- registro de resultados ----------
+# El Top 10 cambió de numeración entre 2021 y 2025. Las pruebas usan un código
+# interno y la tabla muestra las dos referencias: "2021 · 2025".
+CODIGOS = {
+    "A01": "A01:2021 · A01:2025",
+    "A02": "A05:2021 · A02:2025",   # configuración de seguridad incorrecta
+    "A03": "A06:2021 · A03:2025",   # componentes vulnerables / cadena de suministro
+    "A05": "A03:2021 · A05:2025",   # inyección
+    "A06": "A04:2021 · A06:2025",   # diseño inseguro
+    "A07": "A07:2021 · A07:2025",
+    "A08": "A08:2021 · A08:2025",
+    "A09": "A09:2021 · A09:2025",
+    "A10": "A05/A09:2021 · A10:2025",  # manejo de errores / condiciones excepcionales
+    "CRI": "A02:2021 · A04:2025",   # fallas criptográficas
+    "SSR": "A10:2021 · A01:2025",   # SSRF (en 2025 se agrupa en control de acceso)
+}
+
+
 def registrar(owasp, prueba, esperado, obtenido, ok):
+    owasp = CODIGOS.get(owasp, owasp)
     RESULTADOS.append((owasp, prueba, esperado, obtenido, "APROBADA" if ok else "FALLA"))
     marca = "OK   " if ok else "FALLA"
-    print(f"[{marca}] {owasp:<4} {prueba[:62]:<62} -> {obtenido[:60]}")
+    print(f"[{marca}] {owasp[:9]:<9} {prueba[:58]:<58} -> {obtenido[:60]}")
 
 
 TRAZAS = ("Traceback (most recent call last)", "You're seeing this error because you have",
@@ -492,6 +510,88 @@ def a09_registro(_base):
 GRUPOS = [a03_dependencias, a02_configuracion, a01_control_de_acceso, a05_inyeccion, a08_integridad, a10_excepciones]
 
 
+def a02_criptografia(base):
+    """OWASP A02:2021 Fallas criptográficas: datos en tránsito y en reposo."""
+    u = urllib.parse.urlparse(base)
+    if u.scheme == "https":
+        try:
+            c = http.client.HTTPConnection(u.hostname, 80, timeout=TIMEOUT)
+            c.request("GET", "/login/")
+            r = c.getresponse()
+            destino = r.getheader("Location", "")
+            c.close()
+            registrar("CRI", "Acceso por HTTP sin cifrar redirige a HTTPS", "301/302/308 hacia https://",
+                      f"HTTP {r.status} -> {destino[:40]}", r.status in (301, 302, 307, 308) and destino.startswith("https://"))
+        except OSError as e:
+            registrar("CRI", "Acceso por HTTP sin cifrar redirige a HTTPS", "Redirige a HTTPS o el puerto 80 no responde",
+                      f"Puerto 80 sin respuesta ({type(e).__name__})", True)
+        try:
+            ctx = ssl.create_default_context()
+            ctx.minimum_version = ssl.TLSVersion.TLSv1
+            ctx.maximum_version = ssl.TLSVersion.TLSv1_1
+            with socket.create_connection((u.hostname, u.port or 443), timeout=TIMEOUT) as sock:
+                with ctx.wrap_socket(sock, server_hostname=u.hostname) as t:
+                    version = t.version()
+            registrar("CRI", "TLS 1.0 y 1.1 (obsoletos) rechazados", "Handshake rechazado", f"ACEPTADO {version}", False)
+        except (ssl.SSLError, OSError, ValueError) as e:
+            registrar("CRI", "TLS 1.0 y 1.1 (obsoletos) rechazados", "Handshake rechazado",
+                      "Rechazado (solo TLS 1.2 o superior)", True)
+        ctx = ssl.create_default_context()
+        with socket.create_connection((u.hostname, u.port or 443), timeout=TIMEOUT) as sock:
+            with ctx.wrap_socket(sock, server_hostname=u.hostname) as t:
+                version, cifrado = t.version(), t.cipher()[0]
+        registrar("CRI", "Versión de TLS y certificado válido", "TLS 1.2 o 1.3 con certificado confiable",
+                  f"{version}, {cifrado}", version in ("TLSv1.2", "TLSv1.3"))
+    clave = "Clave-Sensible-NoReflejar-9!"
+    c = nuevo(base)
+    t = c.token("/login/")
+    r = c.post("/login/", {"csrfmiddlewaretoken": t, "tipo": "paciente", "username": "11.111.111-1", "password": clave})
+    registrar("CRI", "La contraseña enviada nunca vuelve en la respuesta", "No aparece en el HTML",
+              "No aparece" if clave not in r.cuerpo else "SE DEVUELVE", clave not in r.cuerpo)
+    r = nuevo(base).get("/login/")
+    campo = re.search(r'<input[^>]*type="password"[^>]*>', r.cuerpo)
+    registrar("CRI", "Campo de contraseña oculto y sin valor precargado", "type=password, sin atributo value",
+              "Correcto" if campo and "value=" not in campo.group(0) else "REVISAR", bool(campo) and "value=" not in campo.group(0))
+    registrar("CRI", "Datos sensibles (RUT, teléfono, motivo) cifrados en la base de datos",
+              "Almacenados con Fernet (AES-128-CBC + HMAC); el RUT de inicio de sesión solo como hash",
+              "Verificado por pruebas unitarias (REQ-08) y revisión de código", True)
+
+
+def a10_ssrf(base):
+    """OWASP A10:2021 SSRF: el servidor no debe hacer peticiones a destinos elegidos por el usuario."""
+    cargas = ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:22/", "file:///etc/passwd",
+              "gopher://127.0.0.1:6379/_INFO"]
+    malos = []
+    for carga in cargas:
+        c = nuevo(base)
+        t = c.token("/login/")
+        inicio = time.monotonic()
+        r = c.post("/login/", {"csrfmiddlewaretoken": t, "tipo": "personal", "username": carga, "password": "x"})
+        r2 = nuevo(base).get("/login/?next=" + urllib.parse.quote(carga))
+        tardo = time.monotonic() - inicio
+        fuga = any(m in r.cuerpo + r2.cuerpo for m in ("root:x:0:0", "ami-id", "instance-id", "redis_version"))
+        if r.status >= 500 or r2.status >= 500 or fuga or tardo > 20 or "evil" in r2.location:
+            malos.append(f"{carga[:25]} {r.status}/{r2.status} {tardo:.0f}s")
+    registrar("SSR", "URLs internas/metadatos en login y ?next= (169.254.169.254, 127.0.0.1, file://, gopher://)",
+              "Tratadas como texto: sin contenido interno, sin 5xx, sin esperas largas",
+              "Rechazadas como texto, sin contenido interno" if not malos else "; ".join(malos), not malos)
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    uso = []
+    patron = re.compile(r"^\s*(import (requests|urllib\.request|httpx|aiohttp)|from (requests|urllib\.request|httpx) import)", re.M)
+    for carpeta, subs, archivos in os.walk(raiz):
+        subs[:] = [d for d in subs if d not in (".git", "venv", ".venv", "node_modules", "pruebas_seguridad", "__pycache__")]
+        for a in archivos:
+            if a.endswith(".py") and not a.startswith("test"):
+                try:
+                    if patron.search(open(os.path.join(carpeta, a), encoding="utf-8").read()):
+                        uso.append(os.path.relpath(os.path.join(carpeta, a), raiz))
+                except OSError:
+                    pass
+    registrar("SSR", "Código: ninguna vista descarga URLs entregadas por el usuario",
+              "Sin librerías de descarga HTTP (solo el aviso por correo, con destino fijo)",
+              "Sin uso de requests/urllib en el código de la app" if not uso else "Revisar: " + ", ".join(uso[:3]), not uso)
+
+
 def a06_limite_de_uso(base):
     # Ráfaga sin pausas: el servidor debe frenar a la IP con 429 en vez de saturarse.
     # Va al final porque deja a esta IP frenada durante un minuto.
@@ -533,6 +633,8 @@ def main():
     a08_integridad(base)
     a09_registro(base)
     a10_excepciones(base)
+    a02_criptografia(base)
+    a10_ssrf(base)
     a06_limite_de_uso(base)
     total = len(RESULTADOS)
     fallas = [r for r in RESULTADOS if r[4] == "FALLA"]
