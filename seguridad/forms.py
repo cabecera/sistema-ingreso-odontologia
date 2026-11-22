@@ -8,6 +8,8 @@
 #   está pendiente o si la contraseña fue la equivocada.
 # - Bloqueo: tras 5 fallos seguidos para un mismo identificador, 10 minutos sin
 #   poder intentar (frena la adivinanza de contraseñas; el RUT no es secreto).
+#   El contador es por IP + identificador: quien falla desde su conexión no puede
+#   bloquear la cuenta de otra persona que entra desde otra IP.
 #   Se guarda en el caché del servidor, sin datos personales (solo un hash).
 # ============================================
 import hashlib
@@ -21,12 +23,19 @@ from django.core.validators import MaxLengthValidator
 from pacientes.models import PerfilPaciente
 from pacientes.rut_login import hash_rut
 from pacientes.validators import limpiar_rut
+from seguridad.limites import contar, ip_cliente, superado
 
 PACIENTE = "paciente"
 PERSONAL = "personal"
 CLAVE_LOGIN_MAXIMO = 128
 MAX_INTENTOS = 5
 BLOQUEO_SEGUNDOS = 600
+# Además del bloqueo por IP + identificador (5 fallos), hay dos topes más altos:
+# - por identificador desde cualquier IP: frena la adivinanza repartida entre
+#   muchas IP, sin que unos pocos intentos ajenos puedan dejar fuera a un usuario;
+# - por IP con cualquier identificador: frena probar muchas cuentas desde una IP.
+MAX_INTENTOS_IDENTIFICADOR = 30
+MAX_INTENTOS_IP = 40
 # Usuario inexistente: Django igual calcula un hash falso y así la respuesta
 # tarda lo mismo que con un usuario real.
 USUARIO_INEXISTENTE = "-"
@@ -69,9 +78,26 @@ class LoginForm(AuthenticationForm):
             mensaje = "Usuario o contraseña incorrectos."
         self.error_messages = {**self.error_messages, "invalid_login": mensaje}
 
-    def _clave_bloqueo(self, identificador):
+    def _base(self, identificador):
         base = limpiar_rut(identificador) if self.tipo_actual == PACIENTE else identificador.strip().lower()
-        return "login:" + hashlib.sha256(f"{self.tipo_actual}:{base}".encode()).hexdigest()
+        return f"{self.tipo_actual}:{base}"
+
+    def _ip(self):
+        solicitud = getattr(self, "request", None)
+        return ip_cliente(solicitud) if solicitud is not None else "sin-ip"
+
+    def _claves_bloqueo(self, identificador):
+        base = self._base(identificador)
+
+        def h(*partes):
+            return "login:" + hashlib.sha256(":".join(partes).encode()).hexdigest()
+
+        ip = self._ip()
+        return (
+            (h("par", ip, base), MAX_INTENTOS),
+            (h("id", base), MAX_INTENTOS_IDENTIFICADOR),
+            (h("ip", ip), MAX_INTENTOS_IP),
+        )
 
     def _usuario_del_paciente(self, identificador):
         valor = hash_rut(identificador)
@@ -85,8 +111,8 @@ class LoginForm(AuthenticationForm):
         identificador = (self.cleaned_data.get("username") or "").strip()
         if not identificador or not self.cleaned_data.get("password"):
             return self.cleaned_data
-        clave = self._clave_bloqueo(identificador)
-        if cache.get(clave, 0) >= MAX_INTENTOS:
+        claves = self._claves_bloqueo(identificador)
+        if any(superado(clave, tope) for clave, tope in claves):
             raise ValidationError(
                 "Demasiados intentos fallidos. Espera 10 minutos e inténtalo de nuevo.",
                 code="bloqueado",
@@ -96,11 +122,8 @@ class LoginForm(AuthenticationForm):
         try:
             resultado = super().clean()
         except ValidationError:
-            cache.add(clave, 0, BLOQUEO_SEGUNDOS)
-            try:
-                cache.incr(clave)
-            except ValueError:  # la clave venció justo ahora
-                cache.set(clave, 1, BLOQUEO_SEGUNDOS)
+            for clave, _tope in claves:
+                contar(clave, BLOQUEO_SEGUNDOS)
             raise
-        cache.delete(clave)
+        cache.delete(claves[0][0])  # entrada correcta: se limpia el contador de este par
         return resultado
