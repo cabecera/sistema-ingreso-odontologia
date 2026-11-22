@@ -15,7 +15,7 @@
 import hashlib
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.http import HttpResponse
 
 PAGINA_429 = (
@@ -46,18 +46,29 @@ def _clave(*partes):
     return "lim:" + hashlib.sha256(texto.encode()).hexdigest()[:32]
 
 
-def contar(clave, ventana):
+def bloqueos():
+    """Almacén de los intentos fallidos de login.
+
+    Gunicorn corre con varios procesos y cada uno tiene su propia memoria: un
+    contador en memoria se repartiría entre ellos y el bloqueo tardaría el doble
+    en llegar. Estos contadores viven en la base de datos (tabla de caché), así
+    que todos los procesos ven el mismo número y además sobreviven a un reinicio."""
+    return caches["bloqueos"]
+
+
+def contar(clave, ventana, almacen=None):
     """Suma 1 al contador de la ventana y devuelve el total."""
-    cache.add(clave, 0, ventana)
+    almacen = almacen or cache
+    almacen.add(clave, 0, ventana)
     try:
-        return cache.incr(clave)
+        return almacen.incr(clave)
     except ValueError:  # venció justo ahora
-        cache.set(clave, 1, ventana)
+        almacen.set(clave, 1, ventana)
         return 1
 
 
-def superado(clave, tope):
-    return cache.get(clave, 0) >= tope
+def superado(clave, tope, almacen=None):
+    return (almacen or cache).get(clave, 0) >= tope
 
 
 class LimiteDePeticionesMiddleware:

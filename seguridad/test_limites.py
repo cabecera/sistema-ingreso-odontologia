@@ -126,3 +126,26 @@ class AjustesDeResilienciaTests(TestCase):
     def test_cuerpo_enorme_se_rechaza_sin_error_500(self):
         r = self.client.post("/login/", {"username": "a", "password": "x" * 300_000}, secure=True)
         self.assertLess(r.status_code, 500)
+
+
+@override_settings(LIMITES_ACTIVOS=False)
+class BloqueoCompartidoEntreProcesosTests(TestCase):
+    """Gunicorn usa varios procesos con memoria propia: el bloqueo no debe depender de ella."""
+
+    def setUp(self):
+        paciente()
+
+    def test_el_bloqueo_llega_aunque_la_memoria_del_proceso_se_reinicie_en_cada_intento(self):
+        for _ in range(5):
+            cache.clear()  # simula que el intento cayó en otro proceso, con memoria vacía
+            self.client.post("/login/", {"username": RUT, "password": "mala", "tipo": "paciente"},
+                             secure=True, **ip(80))
+        cache.clear()
+        r = self.client.post("/login/", {"username": RUT, "password": CLAVE, "tipo": "paciente"},
+                             secure=True, **ip(80))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Demasiados intentos", " ".join(r.context["form"].non_field_errors()))
+
+    def test_los_contadores_estan_en_la_base_de_datos(self):
+        from django.conf import settings
+        self.assertIn("DatabaseCache", settings.CACHES["bloqueos"]["BACKEND"])
