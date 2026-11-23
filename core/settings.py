@@ -282,6 +282,24 @@ LOGOUT_REDIRECT_URL = 'seguridad:login'
 
 
 # ============================================
+# Sesiones (OWASP A07): duración limitada
+# --------------------------------------------
+# Sin esto Django deja la sesión abierta dos semanas, y en un computador
+# compartido de la facultad otra persona podría seguir usándola.
+# - La sesión vence tras SESSION_COOKIE_AGE segundos SIN actividad: se renueva
+#   con cada petición (SESSION_SAVE_EVERY_REQUEST). Por defecto, 2 horas; se puede
+#   cambiar con la variable de entorno SESSION_COOKIE_AGE (en segundos).
+# - Además se cierra al cerrar el navegador.
+# - La cookie no la puede leer JavaScript (HttpOnly) ni viaja en peticiones
+#   iniciadas desde otros sitios (SameSite=Lax).
+# ============================================
+SESSION_COOKIE_AGE = env.int('SESSION_COOKIE_AGE', default=2 * 60 * 60)
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# ============================================
 # Tasks 45 y 46: Seguridad de la conexión (REQ-09)
 # Se activan SOLO cuando DEBUG=False, porque
 # http://127.0.0.1:8000 no tiene certificado SSL.
