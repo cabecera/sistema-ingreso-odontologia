@@ -23,11 +23,13 @@ Including another URLconf
 # accesible en /admin/.
 # ============================================
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # La ruta sale de ADMIN_URL (por defecto "admin/"); ver seguridad/ruta_admin.py.
+    path(settings.ADMIN_URL, admin.site.urls),
 
     #task 42: Configurar el sistema de inicio de sesión
     path('', include('seguridad.urls')),

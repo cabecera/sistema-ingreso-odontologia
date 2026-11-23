@@ -15,6 +15,7 @@ from pathlib import Path
 import environ
 
 from seguridad.claves import CLAVE_CIFRADO_DE_PRUEBA, CLAVE_SECRETA_DE_PRUEBA, validar_claves
+from seguridad.ruta_admin import normalizar_ruta_admin
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -61,6 +62,13 @@ if render_hostname:
     render_origin = f'https://{render_hostname}'
     if render_origin not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(render_origin)
+
+
+# ============================================
+# Ruta del sitio /admin/ de Django (ver seguridad/ruta_admin.py).
+# En producción se define ADMIN_URL con una ruta que no se adivine.
+# ============================================
+ADMIN_URL = normalizar_ruta_admin(env('ADMIN_URL', default=''))
 
 
 # Application definition
