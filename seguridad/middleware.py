@@ -11,7 +11,7 @@
 # lleva una política algo más amplia (solo para el Super Administrador).
 # ============================================
 import secrets
-
+from django.conf import settings
 from django.http import HttpResponseNotAllowed
 
 METODOS_BLOQUEADOS = {"TRACE", "TRACK"}
@@ -53,7 +53,7 @@ class CabecerasSeguridadMiddleware:
         request.csp_nonce = secrets.token_urlsafe(16)
         response = self.get_response(request)
         response["Content-Security-Policy"] = politica_csp(
-            request.csp_nonce, es_admin=request.path.startswith("/admin/")
+            request.csp_nonce, es_admin=request.path.startswith("/" + settings.ADMIN_URL)
         )
         response.setdefault("Permissions-Policy", PERMISSIONS_POLICY)
         return response
