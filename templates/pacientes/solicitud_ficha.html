@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Ficha de la solicitud #{{ solicitud.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-narrow">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h2 mb-0">Ficha de la solicitud</h1>
+    <a class="btn btn-outline-primary btn-sm" href="{{ volver_url }}">Volver</a>
+  </div>
+
+  <p class="text-secondary">
+    Esta es la información que el paciente completó al reservar su atención. Es de solo lectura y contiene datos de salud: úsala únicamente para la atención.
+  </p>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body p-4">
+      <h2 class="h5 mb-3">Datos del paciente</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Paciente</dt>
+        <dd class="col-sm-8">{{ solicitud.nombre_completo }}</dd>
+        <dt class="col-sm-4">RUT</dt>
+        <dd class="col-sm-8">{{ solicitud.rut }}</dd>
+        <dt class="col-sm-4">Fecha de nacimiento</dt>
+        <dd class="col-sm-8">{{ solicitud.fecha_nacimiento|date:"d/m/Y" }}</dd>
+        <dt class="col-sm-4">Teléfono</dt>
+        <dd class="col-sm-8">{{ solicitud.telefono }}</dd>
+        <dt class="col-sm-4">Solicitud</dt>
+        <dd class="col-sm-8">#{{ solicitud.pk }} &middot; {{ solicitud.especialidad.nombre }}</dd>
+        <dt class="col-sm-4">Ingresada</dt>
+        <dd class="col-sm-8">{{ solicitud.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+        <dt class="col-sm-4">Estado</dt>
+        <dd class="col-sm-8">{{ solicitud.get_estado_display }}</dd>
+        <dt class="col-sm-4">Horario de atención</dt>
+        <dd class="col-sm-8">{{ solicitud.fecha_atencion|date:"d/m/Y H:i"|default:"—" }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body p-4">
+      <h2 class="h5">Motivo de consulta</h2>
+      <div class="mb-4">{{ solicitud.motivo_consulta|linebreaks }}</div>
+
+      <h2 class="h5">Experiencia previa</h2>
+      <div class="mb-4">{{ solicitud.experiencia_previa|default:"No informada."|linebreaks }}</div>
+
+      <h2 class="h5">Antecedentes de salud personales</h2>
+      <div class="mb-4">{{ solicitud.antecedentes_personales|default:"No informados."|linebreaks }}</div>
+
+      <h2 class="h5">Antecedentes de salud familiares</h2>
+      <div class="mb-0">{{ solicitud.antecedentes_familiares|default:"No informados."|linebreaks }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
