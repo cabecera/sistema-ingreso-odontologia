@@ -20,6 +20,8 @@ urlpatterns = [
     path('registros/<int:pk>/aceptar/', views.aceptar_registro, name='aceptar_registro'),
     path('registros/<int:pk>/rechazar/', views.rechazar_registro, name='rechazar_registro'),
     # AB#87: reporte de una atención terminada (solo lectura)
+    # Ficha que llenó el paciente al reservar (solo lectura)
+    path('solicitudes/<int:pk>/', views.ver_solicitud, name='ver_solicitud'),
     path('solicitudes/<int:pk>/reporte/', views.reporte_solicitud, name='reporte_solicitud'),
     path('derivar/<int:pk>/', views.derivar_solicitud, name='derivar_solicitud'),
 ]

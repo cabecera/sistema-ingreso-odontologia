@@ -159,3 +159,30 @@ def ver_reporte(request, pk):
         'ficha': solicitud.ficha,
         'volver_url': reverse('estudiantes:mis_pacientes'),
     })
+
+
+# ============================================
+# Ficha de la solicitud (lo que llenó el paciente al reservar)
+# --------------------------------------------
+# Solo lectura. get_object_or_404 filtra por request.user: la ficha de un
+# paciente asignado a otro estudiante da 404 (anti-IDOR). Contiene datos de
+# salud, así que cada consulta queda en la bitácora sin copiar datos personales.
+# ============================================
+@role_required('Estudiante')
+def ver_solicitud(request, pk):
+    if request.method != 'GET':
+        return HttpResponseNotAllowed(['GET'])
+    solicitud = get_object_or_404(
+        Solicitud.objects.select_related('especialidad'),
+        pk=pk,
+        estudiante_asignado=request.user,
+    )
+    BitacoraAuditoria.objects.create(
+        usuario=request.user,
+        accion="Ficha de solicitud consultada",
+        detalles=f"Solicitud #{solicitud.pk} consultada por el estudiante asignado.",
+    )
+    return render(request, 'pacientes/solicitud_ficha.html', {
+        'solicitud': solicitud,
+        'volver_url': reverse('estudiantes:mis_pacientes'),
+    })

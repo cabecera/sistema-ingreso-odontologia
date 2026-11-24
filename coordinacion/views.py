@@ -14,7 +14,7 @@ import logging
 from django.conf import settings
 from django.core.mail import send_mail
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from administracion.models import Especialidad
 from pacientes.models import PerfilPaciente, Solicitud
@@ -407,5 +407,30 @@ def reporte_solicitud(request, pk):
     return render(request, 'estudiantes/reporte.html', {
         'solicitud': solicitud,
         'ficha': solicitud.ficha,
+        'volver_url': reverse('coordinacion:listado_solicitudes'),
+    })
+
+
+# ============================================
+# Ficha de la solicitud (lo que llenó el paciente al reservar)
+# --------------------------------------------
+# Solo lectura, en cualquier estado de la solicitud. Contiene datos de salud
+# (sensibles), por eso solo la ve el personal autorizado y cada consulta
+# queda en la bitácora de auditoría (sin copiar datos personales).
+# ============================================
+@role_required('Super Administrador', 'Coordinador')
+@require_GET
+def ver_solicitud(request, pk):
+    solicitud = get_object_or_404(
+        Solicitud.objects.select_related('especialidad', 'estudiante_asignado'),
+        pk=pk,
+    )
+    BitacoraAuditoria.objects.create(
+        usuario=request.user,
+        accion="Ficha de solicitud consultada",
+        detalles=f"Solicitud #{solicitud.pk} consultada por coordinación.",
+    )
+    return render(request, 'pacientes/solicitud_ficha.html', {
+        'solicitud': solicitud,
         'volver_url': reverse('coordinacion:listado_solicitudes'),
     })

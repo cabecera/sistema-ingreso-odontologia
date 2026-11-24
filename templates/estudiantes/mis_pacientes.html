@@ -24,6 +24,7 @@
           <th scope="col">Fecha de solicitud</th>
           <th scope="col">Horario de atención</th>
           <th scope="col">Estado</th>
+          <th scope="col">Ficha</th>
           <th scope="col">Acción</th>
         </tr>
       </thead>
@@ -36,6 +37,7 @@
             <td>{{ solicitud.fecha_creacion|date:"d/m/Y" }}</td>
             <td>{{ solicitud.fecha_atencion|date:"d/m/Y H:i"|default:"—" }}</td>
             <td><span class="badge text-bg-{% if solicitud.estado == 'TERMINADO' %}success{% elif solicitud.estado == 'REALIZADO' %}info{% else %}warning{% endif %}">{{ solicitud.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm btn-outline-primary" href="{% url 'estudiantes:ver_solicitud' solicitud.pk %}">Ver solicitud</a></td>
             <td>
               {% if solicitud.estado == 'DERIVADA' %}
                 <form method="post" action="{% url 'estudiantes:marcar_realizada' solicitud.pk %}">
